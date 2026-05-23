@@ -10,6 +10,7 @@ const generateStudyPlan = async (req, res) => {
     subject        = 'Advanced Data Structures and Algorithms',
     examDate       = 'in 7 days',
     studyHoursPerDay = 2,
+    days           = 7,
   } = req.body;
 
   try {
@@ -17,7 +18,7 @@ const generateStudyPlan = async (req, res) => {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
-You are a rigorous academic planner and expert tutor. Your task is to generate a highly structured, day-by-day study schedule.
+You are an expert tutor. Create a structured study plan for ${subject} requiring ${studyHoursPerDay} hours per day. IMPORTANT CONSTRAINT: The exam is in EXACTLY ${days} days. You MUST generate exactly ${days} days of content. Do NOT generate 90 days. Stop precisely at Day ${days}.
 
 Student Input:
 - Subject: ${subject}

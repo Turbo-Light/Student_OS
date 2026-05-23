@@ -32,13 +32,18 @@ const AIPlanner = () => {
     setPlan([]);
 
     try {
+      const today = new Date();
+      const target = new Date(examDate);
+      const diffTime = Math.abs(target - today);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
       const response = await fetch(`${API_URL}/api/ai/generate-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ subject, examDate, hours: studyHours })
+        body: JSON.stringify({ subject, examDate, hours: studyHours, days: diffDays })
       });
 
       const data = await response.json();
