@@ -44,21 +44,24 @@ Example of the required format:
   { "day": "Day 2", "topic": "Arrays, Linked Lists & Pointers", "description": "Implement singly and doubly linked lists. Understand pointer arithmetic and dynamic array resizing.", "duration": "2 hours" }
 ]
 
+IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown formatting. Ensure all brackets are closed.
+
 Generate the full study plan now:
 `;
 
     const result = await model.generateContent(prompt);
-    const rawText = result.response.text().trim();
+    const text = result.response.text();
+    const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
 
-    // Strip markdown code fences if the model wraps output despite instructions
-    const cleaned = rawText
-      .replace(/```(?:json)?\s*/gi, '')
-      .replace(/```/g, '')
-      .trim();
+    let planData;
+    try {
+      planData = JSON.parse(sanitizedText);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError.message);
+      return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
+    }
 
-    const studyPlan = JSON.parse(cleaned);
-
-    res.status(200).json({ studyPlan });
+    res.status(200).json({ studyPlan: planData });
   } catch (error) {
     console.error('[AI] generateStudyPlan error:', error.message);
 
