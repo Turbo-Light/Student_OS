@@ -1,6 +1,8 @@
 import React, { createContext, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export const TaskContext = createContext();
 
 export const TaskProvider = ({ children }) => {
@@ -10,7 +12,7 @@ export const TaskProvider = ({ children }) => {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/tasks', {
+      const res = await fetch(`${API_URL}/api/tasks`, {
         headers: { 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}` 
@@ -30,7 +32,7 @@ export const TaskProvider = ({ children }) => {
 
   const addTask = async (taskData) => {
     try {
-      const res = await fetch('http://localhost:5000/api/tasks', {
+      const res = await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -51,7 +53,7 @@ export const TaskProvider = ({ children }) => {
 
   const updateTask = async (id, taskData) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/tasks/${id}`, {
+      const res = await fetch(`${API_URL}/api/tasks/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -71,7 +73,7 @@ export const TaskProvider = ({ children }) => {
 
   const deleteTask = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/tasks/${id}`, {
+      const res = await fetch(`${API_URL}/api/tasks/${id}`, {
         method: 'DELETE',
         headers: { 
           'Content-Type': 'application/json',

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const CHART_COLORS = ['#00FF41', '#FF2A2A'];
 
 const Dashboard = () => {
@@ -26,7 +28,7 @@ const Dashboard = () => {
   const fetchStats = async () => {
     setLoadingStats(true);
     try {
-      const response = await fetch('http://localhost:5000/api/tasks/stats', {
+      const response = await fetch(`${API_URL}/api/tasks/stats`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       if (response.ok) {
@@ -44,7 +46,7 @@ const Dashboard = () => {
     setLoading(true);
     const startTime = performance.now();
     try {
-      const response = await fetch('http://localhost:5000/api/health');
+      const response = await fetch(`${API_URL}/api/health`);
       if (!response.ok) {
         throw new Error(`Server returned HTTP ${response.status}`);
       }
@@ -339,13 +341,13 @@ const Dashboard = () => {
                   <div className="bg-[#0b0d13] border border-neutral-800/80 rounded-lg p-5 font-mono text-sm leading-relaxed overflow-x-auto min-h-[140px] whitespace-pre-wrap break-words">
                     {loading ? (
                       <div className="text-neutral-500 space-y-1.5 animate-pulse">
-                        <p className="text-cyan-500/80 font-bold">$ GET http://localhost:5000/api/health</p>
+                        <p className="text-cyan-500/80 font-bold">$ GET {API_URL}/api/health</p>
                         <p>Connecting to api socket...</p>
                         <p>Buffering raw bytes...</p>
                       </div>
                     ) : error ? (
                       <div className="space-y-2 text-rose-400">
-                        <p className="text-rose-500 font-bold">$ GET http://localhost:5000/api/health</p>
+                        <p className="text-rose-500 font-bold">$ GET {API_URL}/api/health</p>
                         <p className="font-semibold text-rose-500">[ERROR_REPORT]</p>
                         <p className="text-neutral-400 bg-neutral-950 p-3 border border-rose-500/20 rounded font-mono text-xs text-rose-300">
                           {error}
@@ -355,7 +357,7 @@ const Dashboard = () => {
                     ) : (
                       <div className="space-y-3">
                         <div className="flex justify-between items-center text-xs text-cyan-400/70 border-b border-neutral-800/40 pb-2">
-                          <span className="font-bold">$ GET http://localhost:5000/api/health</span>
+                          <span className="font-bold">$ GET {API_URL}/api/health</span>
                           <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold text-[10px]">200 OK</span>
                         </div>
                         

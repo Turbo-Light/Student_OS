@@ -16,7 +16,7 @@ connectDB();
 const app = express();
 
 // Apply global middlewares
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
 
 // Mount API routes

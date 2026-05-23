@@ -2,6 +2,8 @@ import React, { useState, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { TaskContext } from '../context/TaskContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const AIPlanner = () => {
   const [subject, setSubject] = useState('');
   const [examDate, setExamDate] = useState('');
@@ -30,7 +32,7 @@ const AIPlanner = () => {
     setPlan([]);
 
     try {
-      const response = await fetch('http://localhost:5000/api/ai/generate-plan', {
+      const response = await fetch(`${API_URL}/api/ai/generate-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
