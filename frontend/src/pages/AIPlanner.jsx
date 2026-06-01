@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { TaskContext } from '../context/TaskContext';
+import QuizPlayer from './QuizPlayer';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -15,6 +16,12 @@ const AIPlanner = () => {
   const [error, setError] = useState(null);
   const { addTask } = useContext(TaskContext);
   const [appendedTasks, setAppendedTasks] = useState(new Set());
+
+  // Quiz Integration States
+  const [activeQuizData, setActiveQuizData] = useState(null);
+  const [quizSubject, setQuizSubject] = useState('');
+  const [quizDay, setQuizDay] = useState(1);
+  const [generatingQuizDay, setGeneratingQuizDay] = useState(null);
 
   const handleAppendTask = (item, idx) => {
     // Creating a combined description from topics, practice, and revision
@@ -91,6 +98,47 @@ const AIPlanner = () => {
       setError('Neural link disconnected. Failed to reach AI node.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateQuiz = async (dayItem) => {
+    setGeneratingQuizDay(dayItem.day);
+    setError(null);
+    
+    try {
+      // derive subject from the input text or image name
+      const derivedSubject = syllabusText.split('\n')[0].substring(0, 50) || 
+                             (selectedImage ? selectedImage.name.split('.')[0] : 'Syllabus Directives');
+
+      const topicsArray = dayItem.topics ? dayItem.topics.split(',').map(t => t.trim()) : [dayItem.topic || `Study Day ${dayItem.day}`];
+
+      const response = await fetch(`${API_URL}/api/quizzes/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          subject: derivedSubject,
+          dayNumber: dayItem.day,
+          topics: topicsArray
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setActiveQuizData(data.questions || []);
+        setQuizSubject(derivedSubject);
+        setQuizDay(dayItem.day);
+      } else {
+        setError(data.message || 'Quiz generation failed.');
+      }
+    } catch (err) {
+      console.error('Quiz Generation Error:', err);
+      setError('Failed to reach Quiz Engine.');
+    } finally {
+      setGeneratingQuizDay(null);
     }
   };
 
@@ -327,7 +375,7 @@ const AIPlanner = () => {
                         </div>
                       </div>
                       
-                      <div className="relative z-10 shrink-0 text-right w-full sm:w-auto">
+                      <div className="relative z-10 shrink-0 text-right w-full sm:w-auto flex flex-col gap-2">
                         <button 
                           onClick={() => handleAppendTask(item, idx)}
                           disabled={appendedTasks.has(idx)}
@@ -339,6 +387,18 @@ const AIPlanner = () => {
                         >
                           {appendedTasks.has(idx) ? '[ APPENDED ]' : '[ + APPEND TO TASKS ]'}
                         </button>
+
+                        <button
+                          onClick={() => handleGenerateQuiz(item)}
+                          disabled={generatingQuizDay === item.day}
+                          className={`w-full sm:w-auto text-[10px] font-mono border px-3 py-1.5 transition-all cursor-pointer ${
+                            generatingQuizDay === item.day
+                              ? 'text-indigo-400 border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.2)] bg-indigo-500/10'
+                              : 'text-neutral-500 border-neutral-700 hover:text-indigo-400 hover:border-indigo-500/30 bg-indigo-500/5'
+                          }`}
+                        >
+                          {generatingQuizDay === item.day ? '[ GENERATING... ]' : '[ GENERATE QUIZ ]'}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -349,6 +409,16 @@ const AIPlanner = () => {
 
         </div>
       </div>
+
+      {/* Quiz Modal Overlay */}
+      {activeQuizData && (
+        <QuizPlayer 
+          quizData={activeQuizData}
+          subject={quizSubject}
+          dayNumber={quizDay}
+          onClose={() => setActiveQuizData(null)}
+        />
+      )}
     </div>
   );
 };
