@@ -175,20 +175,22 @@ Generate the full study plan now:
  */
 const generatePlanImage = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: "No image provided or multer failed." });
+    console.error(">>> MULTER ERROR: req.file is undefined. The image was not parsed.");
+    return res.status(400).json({ message: "Image upload failed. Ensure the frontend is sending the file as 'image' inside FormData without hardcoded Content-Type headers." });
   }
 
-  const { examDate, hoursPerDay } = req.body;
+  const { examDate, hoursPerDay: hoursPerDayRaw } = req.body;
+  const hoursPerDay = Number(hoursPerDayRaw);
 
-  if (!examDate || !hoursPerDay) {
-    return res.status(400).json({ message: 'Missing required fields' });
+  if (!examDate || !hoursPerDay || isNaN(hoursPerDay)) {
+    return res.status(400).json({ message: 'Missing required fields or invalid hoursPerDay' });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const target = new Date(req.body.examDate);
+    const target = new Date(examDate);
     const today = new Date();
     const diffTime = target - today;
     if (diffTime <= 0 || isNaN(diffTime)) {
