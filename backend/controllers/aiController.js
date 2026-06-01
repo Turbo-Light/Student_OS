@@ -91,27 +91,34 @@ Generate the full study plan now:
  */
 const generatePlanText = async (req, res) => {
   const {
-    subject,
     syllabusText,
     examDate,
     hoursPerDay,
   } = req.body;
 
-  if (!subject || !syllabusText || !examDate || !hoursPerDay) {
+  const subject = req.body.subject || 'the provided syllabus';
+
+  if (!syllabusText || !examDate || !hoursPerDay) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
 
-    const target = new Date(examDate);
-    const today = new Date();
-    const diffTime = target - today;
-    if (diffTime <= 0) {
-      return res.status(400).json({ message: 'Exam date must be in the future' });
+    let days = req.body.days ? Number(req.body.days) : null;
+    if (!days || isNaN(days)) {
+      const target = new Date(examDate);
+      const today = new Date();
+      const diffTime = target - today;
+      days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (isNaN(days) || days <= 0) {
+        days = 7;
+      }
     }
-    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     const prompt = `
 You are an expert tutor. Create a structured study plan for ${subject} based on the provided syllabus text.
@@ -122,8 +129,7 @@ Syllabus Text:
 ${syllabusText}
 
 CRITICAL OUTPUT REQUIREMENT:
-Return ONLY a raw JSON array. Do not include markdown formatting, backticks, or the word 'json'.
-Each element in the array must be an object with exactly these five keys:
+Return a JSON array where each element is an object with exactly these five keys:
   - "day": a number representing the day (e.g., 1, 2, etc.)
   - "topics": an array of strings representing specific topics
   - "studyTime": a string representing duration (e.g., "2 hours")
@@ -140,31 +146,15 @@ Example of the required format:
     "practiceTasks": "Solve Two Sum" 
   }
 ]
-
-IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown formatting. Ensure all brackets are closed.
-
-Generate the full study plan now:
 `;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-
-    let planData;
-    try {
-      planData = JSON.parse(sanitizedText);
-    } catch (parseError) {
-      console.error("JSON Parse Error:", parseError.message);
-      return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
-    }
+    const planData = JSON.parse(result.response.text());
 
     res.status(200).json({ studyPlan: planData });
   } catch (error) {
-    console.error('[AI] generatePlanText error:', error.message);
-    res.status(500).json({
-      message: 'Failed to generate study plan from text. Check your GEMINI_API_KEY or try again.',
-      error: error.message,
-    });
+    console.error(">>> TEXT PIPELINE CRASH:", error);
+    return res.status(500).json({ message: "Text generation failed.", error: error.message });
   }
 };
 
