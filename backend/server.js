@@ -5,6 +5,8 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
+import quizRoutes from './routes/quizRoutes.js';
+import initCronService from './services/cronService.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -29,6 +31,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/quizzes', quizRoutes);
 
 // Base health check route
 app.get('/api/health', (req, res) => {
@@ -50,6 +53,9 @@ const server = app.listen(PORT, () => {
   console.log(`Listening on Port: ${PORT}`);
   console.log(`Health Check Endpoint: http://localhost:${PORT}/api/health`);
   console.log(`============================================================\n`);
+
+  // Boot the deadline reminder cron daemon after the server is fully ready
+  initCronService();
 });
 
 // Graceful shutdown handling
