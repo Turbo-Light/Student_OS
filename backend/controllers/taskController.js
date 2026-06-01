@@ -22,7 +22,7 @@ const getTasks = async (req, res) => {
  */
 const createTask = async (req, res) => {
   try {
-    const { title, description, priority, status, dueDate } = req.body;
+    const { title, description, priority, status, dueDate, deadline, subject } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: 'Task title is required.' });
@@ -35,6 +35,8 @@ const createTask = async (req, res) => {
       priority,
       status,
       dueDate,
+      deadline,
+      subject,
     });
 
     res.status(201).json(task);
@@ -61,7 +63,7 @@ const updateTask = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized to update this task.' });
     }
 
-    const { title, description, priority, status, dueDate } = req.body;
+    const { title, description, priority, status, dueDate, deadline, subject } = req.body;
 
     // --- Gamification Engine ---
     // Award XP only on a fresh transition into 'Completed' status
@@ -91,6 +93,8 @@ const updateTask = async (req, res) => {
     task.priority    = priority    ?? task.priority;
     task.status      = status      ?? task.status;
     task.dueDate     = dueDate     ?? task.dueDate;
+    task.deadline    = deadline    ?? task.deadline;
+    task.subject     = subject     ?? task.subject;
 
     const updatedTask = await task.save();
     res.status(200).json(updatedTask);

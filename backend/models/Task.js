@@ -35,6 +35,13 @@ const taskSchema = new mongoose.Schema(
     dueDate: {
       type: Date,
     },
+    deadline: {
+      type: Date,
+    },
+    subject: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
