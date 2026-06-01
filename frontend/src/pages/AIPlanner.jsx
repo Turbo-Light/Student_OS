@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { TaskContext } from '../context/TaskContext';
 import QuizPlayer from './QuizPlayer';
+import MockExamPlayer from './MockExamPlayer';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -22,6 +23,10 @@ const AIPlanner = () => {
   const [quizSubject, setQuizSubject] = useState('');
   const [quizDay, setQuizDay] = useState(1);
   const [generatingQuizDay, setGeneratingQuizDay] = useState(null);
+
+  // Mock Exam States
+  const [activeMockExam, setActiveMockExam] = useState(null);
+  const [generatingMockExam, setGeneratingMockExam] = useState(false);
 
   const handleAppendTask = (item, idx) => {
     // Creating a combined description from topics, practice, and revision
@@ -139,6 +144,42 @@ const AIPlanner = () => {
       setError('Failed to reach Quiz Engine.');
     } finally {
       setGeneratingQuizDay(null);
+    }
+  };
+
+  const handleGenerateMockExam = async () => {
+    setGeneratingMockExam(true);
+    setError(null);
+
+    try {
+      const derivedSubject = (syllabusText && syllabusText.trim().length > 0) 
+                             ? syllabusText.split('\n')[0].substring(0, 50) 
+                             : (selectedImage ? selectedImage.name.split('.')[0] : 'Comprehensive AI Syllabus Review');
+
+      const response = await fetch(`${API_URL}/api/mock-exams/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          subject: derivedSubject,
+          syllabusText: syllabusText || 'Analyze topics generated in the study plan.'
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setActiveMockExam(data);
+      } else {
+        setError(data.message || 'Mock exam generation failed.');
+      }
+    } catch (err) {
+      console.error('Mock Exam Generation Error:', err);
+      setError('Failed to reach AI Evaluator node.');
+    } finally {
+      setGeneratingMockExam(false);
     }
   };
 
@@ -402,6 +443,30 @@ const AIPlanner = () => {
                       </div>
                     </div>
                   ))}
+
+                  <div className="pt-8 border-t border-neutral-800/40 text-center">
+                    <button
+                      onClick={handleGenerateMockExam}
+                      disabled={generatingMockExam}
+                      className={`px-8 py-4 font-mono font-bold tracking-widest text-sm border transition-all cursor-pointer inline-flex items-center gap-3 ${
+                        generatingMockExam
+                          ? 'bg-rose-500/10 border-rose-500/50 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
+                          : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-500/5 hover:shadow-[0_0_20px_rgba(244,63,94,0.15)]'
+                      }`}
+                    >
+                      {generatingMockExam ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                          [ INITIALIZING EXAM SEQUENCE... ]
+                        </>
+                      ) : (
+                        '[ INITIATE FINAL MOCK EXAM ]'
+                      )}
+                    </button>
+                    <p className="text-[10px] font-mono text-neutral-600 mt-3 uppercase tracking-widest">
+                      Spawns a full-length, timer-based rigorous evaluation
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -417,6 +482,14 @@ const AIPlanner = () => {
           subject={quizSubject}
           dayNumber={quizDay}
           onClose={() => setActiveQuizData(null)}
+        />
+      )}
+
+      {/* Mock Exam Modal Overlay */}
+      {activeMockExam && (
+        <MockExamPlayer 
+          examData={activeMockExam}
+          onClose={() => setActiveMockExam(null)}
         />
       )}
     </div>
