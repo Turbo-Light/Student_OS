@@ -15,15 +15,51 @@ export const generateMockExam = async (req, res) => {
       generationConfig: { responseMimeType: 'application/json' }
     });
 
-    const prompt = `You are a strict University Professor creating a final mock exam for the subject '${subject}' based entirely on this syllabus: '${syllabusText}'. You MUST generate exactly TWO sections: 'Part A: Objective' (10 MCQs) and 'Part B: Subjective' (5 Short Answer or Coding questions, choosing Coding only if the subject involves programming, mathematics, or applied logic). You MUST return ONLY a valid JSON object with this exact structure: { "sections": [ { "sectionName": "Part A: Objective", "instructions": "...", "questions": [...] }, { "sectionName": "Part B: Subjective", "instructions": "...", "questions": [...] } ] }. For the 'type' field, you MUST use EXACTLY one of these strings: 'MCQ', 'ShortAnswer', or 'Coding'. Do not use spaces in the type string. For MCQs, 'options' MUST be an array of exactly 4 strings and 'correctAnswer' MUST be exactly one letter (e.g., 'A', 'B', 'C', or 'D'). For the 'explanation' field, you MUST provide the actual correct solution, answer key, or code snippet — NOT a pedagogical explanation of why the question was asked. You MUST provide 'correctAnswer' and 'explanation' for ALL questions.`;
+    const prompt = `You are a strict University Professor creating a final mock exam for the subject '${subject}' based entirely on this syllabus: '${syllabusText}'.
+
+You MUST generate exactly TWO sections: 'Part A: Objective' (10 MCQs) and 'Part B: Subjective' (5 Short Answer or Coding questions, choosing Coding only if the subject involves programming, mathematics, or applied logic).
+
+You MUST return a JSON object strictly matching this exact structure:
+{
+  "sections": [
+    {
+      "sectionName": "Part A: Objective",
+      "instructions": "Choose the correct answer for each question.",
+      "questions": [
+        {
+          "type": "MCQ",
+          "question": "The actual question text goes here",
+          "options": ["A. Option one", "B. Option two", "C. Option three", "D. Option four"],
+          "correctAnswer": "A",
+          "explanation": "The correct answer is A because..."
+        }
+      ]
+    },
+    {
+      "sectionName": "Part B: Subjective",
+      "instructions": "Answer all questions in detail.",
+      "questions": [
+        {
+          "type": "ShortAnswer",
+          "question": "The actual question text goes here",
+          "correctAnswer": "The expected answer",
+          "explanation": "Detailed explanation of the answer."
+        }
+      ]
+    }
+  ]
+}
+
+CRITICAL RULES:
+- The 'question' field MUST contain the actual question text. Never use 'text', 'prompt', or any other key for the question.
+- For the 'type' field, you MUST use EXACTLY one of: 'MCQ', 'ShortAnswer', or 'Coding'. No spaces, no variations.
+- For MCQs, 'options' MUST be an array of exactly 4 strings and 'correctAnswer' MUST be exactly one letter ('A', 'B', 'C', or 'D').
+- You MUST provide 'correctAnswer' and 'explanation' for ALL questions.`;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-
     let parsedExam;
     try {
-      parsedExam = JSON.parse(sanitizedText);
+      parsedExam = JSON.parse(result.response.text());
     } catch (parseError) {
       console.error('[MockExam] JSON Parse Error:', parseError.message);
       return res.status(500).json({ message: 'The AI generated an incomplete response. Please try generating again.' });
@@ -33,23 +69,22 @@ export const generateMockExam = async (req, res) => {
       return res.status(500).json({ message: 'AI response was malformed: missing sections array. Please try again.' });
     }
 
-    // Apply the same rigorous sanitization layer as the Daily Quiz engine
+    // Apply rigorous sanitization — especially the `question` field fallback
     const sanitizedSections = parsedExam.sections.map(section => ({
       sectionName: section.sectionName || 'Untitled Section',
       instructions: section.instructions || 'Answer all questions in this section.',
       questions: (section.questions || []).map(q => {
         let safeType = q.type;
-        // Catch and normalize AI hallucinations on the type enum
         if (safeType === 'Short Answer') safeType = 'ShortAnswer';
         if (safeType === 'Coding/Application' || safeType === 'coding') safeType = 'Coding';
-        // Final safety net: default to ShortAnswer if still invalid
         if (!['MCQ', 'ShortAnswer', 'Coding'].includes(safeType)) safeType = 'ShortAnswer';
 
         return {
           ...q,
           type: safeType,
+          question: q.question || q.text || q.prompt || 'Question text missing',
           correctAnswer: q.correctAnswer || 'See explanation',
-          explanation: q.explanation || 'Detailed explanation will be provided during review.',
+          explanation: q.explanation || 'Detailed explanation provided in review.',
         };
       }),
     }));
