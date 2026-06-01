@@ -1,4 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @desc    Generate a structured AI study plan using Google Gemini
@@ -81,4 +84,171 @@ Generate the full study plan now:
   }
 };
 
-export { generateStudyPlan };
+/**
+ * @desc    Generate a structured AI study plan from syllabus text
+ * @route   POST /api/ai/generate/text
+ * @access  Private
+ */
+const generatePlanText = async (req, res) => {
+  const {
+    subject,
+    syllabusText,
+    examDate,
+    hoursPerDay,
+  } = req.body;
+
+  if (!subject || !syllabusText || !examDate || !hoursPerDay) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const target = new Date(examDate);
+    const today = new Date();
+    const diffTime = target - today;
+    if (diffTime <= 0) {
+      return res.status(400).json({ message: 'Exam date must be in the future' });
+    }
+    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const prompt = `
+You are an expert tutor. Create a structured study plan for ${subject} based on the provided syllabus text.
+The student has ${hoursPerDay} hours per day to study.
+IMPORTANT CONSTRAINT: The exam is in EXACTLY ${days} days. You MUST generate exactly ${days} days of content. Do NOT generate 90 days. Stop precisely at Day ${days}.
+
+Syllabus Text:
+${syllabusText}
+
+CRITICAL OUTPUT REQUIREMENT:
+Return ONLY a raw JSON array. Do not include markdown formatting, backticks, or the word 'json'.
+Each element in the array must be an object with exactly these five keys:
+  - "day": a number representing the day (e.g., 1, 2, etc.)
+  - "topics": an array of strings representing specific topics
+  - "studyTime": a string representing duration (e.g., "2 hours")
+  - "revisionTasks": a string describing revision activities
+  - "practiceTasks": a string describing practice activities
+
+Example of the required format:
+[
+  { 
+    "day": 1, 
+    "topics": ["Array Basics"], 
+    "studyTime": "2 hours", 
+    "revisionTasks": "Revise Big O", 
+    "practiceTasks": "Solve Two Sum" 
+  }
+]
+
+IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown formatting. Ensure all brackets are closed.
+
+Generate the full study plan now:
+`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+
+    let planData;
+    try {
+      planData = JSON.parse(sanitizedText);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError.message);
+      return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
+    }
+
+    res.status(200).json({ studyPlan: planData });
+  } catch (error) {
+    console.error('[AI] generatePlanText error:', error.message);
+    res.status(500).json({
+      message: 'Failed to generate study plan from text. Check your GEMINI_API_KEY or try again.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Generate a structured AI study plan from syllabus image
+ * @route   POST /api/ai/generate/image
+ * @access  Private
+ */
+const generatePlanImage = async (req, res) => {
+  const { examDate, hoursPerDay } = req.body;
+  const file = req.file;
+
+  if (!file || !examDate || !hoursPerDay) {
+    return res.status(400).json({ message: 'Missing required fields or image' });
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const target = new Date(examDate);
+    const today = new Date();
+    const diffTime = target - today;
+    if (diffTime <= 0) {
+      return res.status(400).json({ message: 'Exam date must be in the future' });
+    }
+    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const imagePart = {
+      inlineData: {
+        data: file.buffer.toString("base64"),
+        mimeType: file.mimetype
+      }
+    };
+
+    const prompt = `
+You are an expert tutor. Extract the syllabus topics from the provided image and generate a structured study plan for exactly ${days} days.
+The student has ${hoursPerDay} hours per day to study.
+IMPORTANT CONSTRAINT: The exam is in EXACTLY ${days} days. You MUST generate exactly ${days} days of content. Do NOT generate 90 days. Stop precisely at Day ${days}.
+
+CRITICAL OUTPUT REQUIREMENT:
+Return ONLY a raw JSON array. Do not include markdown formatting, backticks, or the word 'json'.
+Each element in the array must be an object with exactly these five keys:
+  - "day": a number representing the day (e.g., 1, 2, etc.)
+  - "topics": an array of strings representing specific topics
+  - "studyTime": a string representing duration (e.g., "2 hours")
+  - "revisionTasks": a string describing revision activities
+  - "practiceTasks": a string describing practice activities
+
+Example of the required format:
+[
+  { 
+    "day": 1, 
+    "topics": ["Array Basics"], 
+    "studyTime": "2 hours", 
+    "revisionTasks": "Revise Big O", 
+    "practiceTasks": "Solve Two Sum" 
+  }
+]
+
+IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown formatting. Ensure all brackets are closed.
+`;
+
+    const result = await model.generateContent([prompt, imagePart]);
+    const text = result.response.text();
+    const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+
+    let planData;
+    try {
+      planData = JSON.parse(sanitizedText);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError.message);
+      return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
+    }
+
+    res.status(200).json({ studyPlan: planData });
+  } catch (error) {
+    console.error('[AI] generatePlanImage error:', error.message);
+    res.status(500).json({
+      message: 'Failed to generate study plan from image. Check your GEMINI_API_KEY or try again.',
+      error: error.message,
+    });
+  }
+};
+
+export { upload, generateStudyPlan, generatePlanText, generatePlanImage };
+
