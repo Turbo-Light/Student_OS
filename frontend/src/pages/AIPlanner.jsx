@@ -106,11 +106,11 @@ const AIPlanner = () => {
     setError(null);
     
     try {
-      // derive subject from the input text or image name
-      const derivedSubject = syllabusText.split('\n')[0].substring(0, 50) || 
-                             (selectedImage ? selectedImage.name.split('.')[0] : 'Syllabus Directives');
+      const derivedSubject = (syllabusText && syllabusText.trim().length > 0) 
+                             ? syllabusText.split('\n')[0].substring(0, 50) 
+                             : (selectedImage ? selectedImage.name.split('.')[0] : 'Daily Syllabus Revision');
 
-      const topicsArray = dayItem.topics ? dayItem.topics.split(',').map(t => t.trim()) : [dayItem.topic || `Study Day ${dayItem.day}`];
+      const topicsArray = Array.isArray(dayItem.topics) ? dayItem.topics : [dayItem.topics || `Study Day ${dayItem.day}`];
 
       const response = await fetch(`${API_URL}/api/quizzes/generate`, {
         method: 'POST',
