@@ -174,29 +174,32 @@ Generate the full study plan now:
  * @access  Private
  */
 const generatePlanImage = async (req, res) => {
-  const { examDate, hoursPerDay } = req.body;
-  const file = req.file;
+  if (!req.file) {
+    return res.status(400).json({ message: "No image provided or multer failed." });
+  }
 
-  if (!file || !examDate || !hoursPerDay) {
-    return res.status(400).json({ message: 'Missing required fields or image' });
+  const { examDate, hoursPerDay } = req.body;
+
+  if (!examDate || !hoursPerDay) {
+    return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const target = new Date(examDate);
+    const target = new Date(req.body.examDate);
     const today = new Date();
     const diffTime = target - today;
-    if (diffTime <= 0) {
-      return res.status(400).json({ message: 'Exam date must be in the future' });
+    if (diffTime <= 0 || isNaN(diffTime)) {
+      return res.status(400).json({ message: 'Exam date must be a valid future date' });
     }
     const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     const imagePart = {
       inlineData: {
-        data: file.buffer.toString("base64"),
-        mimeType: file.mimetype
+        data: req.file.buffer.toString("base64"),
+        mimeType: req.file.mimetype
       }
     };
 
