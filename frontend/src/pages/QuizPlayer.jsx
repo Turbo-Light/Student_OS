@@ -62,7 +62,11 @@ const QuizPlayer = ({ quizData, onClose, subject, dayNumber }) => {
         const userAnswer = userAnswers[idx];
         const correctAnswer = q.correctAnswer;
         
-        if (userAnswer && correctAnswer && userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
+        const isCorrect = userAnswer && correctAnswer && (
+          userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase() || 
+          userAnswer.trim().charAt(0).toLowerCase() === correctAnswer.trim().charAt(0).toLowerCase()
+        );
+        if (isCorrect) {
           mcqCorrect += 1;
         }
       }
@@ -243,7 +247,10 @@ const QuizPlayer = ({ quizData, onClose, subject, dayNumber }) => {
                   const isMcq = q.type === 'MCQ';
                   const uAnswer = userAnswers[idx];
                   const cAnswer = q.correctAnswer;
-                  const isCorrect = isMcq && uAnswer && uAnswer.trim().toLowerCase() === cAnswer.trim().toLowerCase();
+                  const isCorrect = isMcq && uAnswer && cAnswer && (
+                    uAnswer.trim().toLowerCase() === cAnswer.trim().toLowerCase() || 
+                    uAnswer.trim().charAt(0).toLowerCase() === cAnswer.trim().charAt(0).toLowerCase()
+                  );
 
                   return (
                     <div 
