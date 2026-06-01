@@ -5,9 +5,9 @@ import { TaskContext } from '../context/TaskContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AIPlanner = () => {
-  const [subject, setSubject] = useState('');
+  const [syllabusText, setSyllabusText] = useState('');
   const [examDate, setExamDate] = useState('');
-  const [studyHours, setStudyHours] = useState(2);
+  const [hoursPerDay, setHoursPerDay] = useState(2);
   const [plan, setPlan] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -15,9 +15,18 @@ const AIPlanner = () => {
   const [appendedTasks, setAppendedTasks] = useState(new Set());
 
   const handleAppendTask = (item, idx) => {
-    const desc = item.description || item.Description || 'AI Generated Topic';
+    // Creating a combined description from topics, practice, and revision
+    let desc = '';
+    if (item.topics) desc += `Topics: ${item.topics}\n`;
+    if (item.practiceTasks) desc += `Practice: ${item.practiceTasks}\n`;
+    if (item.revisionTasks) desc += `Revision: ${item.revisionTasks}`;
+    
+    if (!desc) {
+      desc = item.description || item.Description || 'AI Generated Topic';
+    }
+
     addTask({ 
-      title: item.topic, 
+      title: item.topic || `Study Day ${item.day}`, 
       description: desc, 
       priority: 'High', 
       status: 'Pending' 
@@ -37,19 +46,19 @@ const AIPlanner = () => {
       const diffTime = Math.abs(target - today);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      const response = await fetch(`${API_URL}/api/ai/generate-plan`, {
+      const response = await fetch(`${API_URL}/api/ai/generate/text`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ subject, examDate, hours: studyHours, days: diffDays })
+        body: JSON.stringify({ syllabusText, examDate, hoursPerDay, days: diffDays })
       });
 
       const data = await response.json();
       
       if (response.ok) {
-        setPlan(data.studyPlan);
+        setPlan(data.studyPlan || data.plan || []);
       } else {
         setError(data.message || 'Generation failed.');
       }
@@ -68,14 +77,14 @@ const AIPlanner = () => {
       <div className="absolute top-0 right-0 w-[500px] h-[300px] bg-indigo-500/5 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="w-full max-w-7xl mx-auto relative z-10">
+      <div className="max-w-6xl mx-auto relative z-10">
         
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-neutral-800 pb-6 mb-8 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8]" />
-              <p className="text-xs uppercase tracking-[0.25em] font-mono text-indigo-400 font-bold">MODULE // NEURAL_PLANNER</p>
+              <p className="text-xs uppercase tracking-[0.25em] font-mono text-indigo-400 font-bold">MODULE // AI_PLANNER</p>
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-50 via-neutral-100 to-neutral-400">
               AI Study Assistant
@@ -97,14 +106,13 @@ const AIPlanner = () => {
               
               <form onSubmit={handleGenerate} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [SUBJECT]</label>
-                  <input 
-                    type="text" 
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
+                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS DATA [PASTE TOPICS]</label>
+                  <textarea 
+                    value={syllabusText}
+                    onChange={(e) => setSyllabusText(e.target.value)}
                     required
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-neutral-700"
-                    placeholder="e.g., RISC Processor Pipelines"
+                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-neutral-700 min-h-[120px]"
+                    placeholder="e.g., Module 1: Processor Pipelining, Module 2: Cache Coherence..."
                   />
                 </div>
 
@@ -125,8 +133,8 @@ const AIPlanner = () => {
                     type="number" 
                     min="1"
                     max="16"
-                    value={studyHours}
-                    onChange={(e) => setStudyHours(Number(e.target.value))}
+                    value={hoursPerDay}
+                    onChange={(e) => setHoursPerDay(Number(e.target.value))}
                     required
                     className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
                   />
@@ -182,39 +190,61 @@ const AIPlanner = () => {
                   {plan.map((item, idx) => (
                     <div 
                       key={idx}
-                      className="bg-[#111] border-l-2 border-l-indigo-500 border-t border-b border-r border-neutral-800/80 p-5 hover:border-r-indigo-500/30 hover:border-t-indigo-500/30 hover:border-b-indigo-500/30 transition-all group relative overflow-hidden"
+                      className="bg-[#111] border-l-2 border-l-indigo-500 border-t border-b border-r border-neutral-800/80 p-5 hover:border-r-indigo-500/30 hover:border-t-indigo-500/30 hover:border-b-indigo-500/30 transition-all group relative overflow-hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
                     >
                       <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                       
-                      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                            <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest">
-                              DAY {item.day}
-                            </span>
-                            <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-widest">
-                              // {item.duration} HOURS
-                            </span>
-                          </div>
-                          <h3 className="text-sm font-bold text-neutral-200 tracking-wide">{item.topic}</h3>
-                          {(item.description || item.Description) && (
-                            <p className="text-xs text-neutral-400 mt-1">{item.description || item.Description}</p>
-                          )}
+                      <div className="relative z-10 flex-grow w-full">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest">
+                            DAY {item.day}
+                          </span>
+                          <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-widest">
+                            // {item.duration || item.studyTime || hoursPerDay} HOURS
+                          </span>
                         </div>
                         
-                        <div className="shrink-0 text-right">
-                          <button 
-                            onClick={() => handleAppendTask(item, idx)}
-                            disabled={appendedTasks.has(idx)}
-                            className={`text-[10px] font-mono border px-2 py-1 transition-all ${
-                              appendedTasks.has(idx)
-                                ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 cursor-not-allowed'
-                                : 'text-neutral-500 border-transparent hover:text-indigo-400 hover:border-indigo-500/30 cursor-pointer'
-                            }`}
-                          >
-                            {appendedTasks.has(idx) ? '[ APPENDED ]' : '[ + APPEND TO TASKS ]'}
-                          </button>
+                        <div className="space-y-2 mb-3">
+                           {item.topics && (
+                              <div>
+                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Topics</h4>
+                                <p className="text-xs font-bold text-neutral-200">{item.topics}</p>
+                              </div>
+                           )}
+                           {item.practiceTasks && (
+                              <div>
+                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Practice</h4>
+                                <p className="text-xs text-neutral-400">{item.practiceTasks}</p>
+                              </div>
+                           )}
+                           {item.revisionTasks && (
+                              <div>
+                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Revision</h4>
+                                <p className="text-xs text-neutral-400">{item.revisionTasks}</p>
+                              </div>
+                           )}
+                           {/* Fallback rendering if AI output varies slightly */}
+                           {(!item.topics && !item.practiceTasks && !item.revisionTasks && item.topic) && (
+                              <h3 className="text-sm font-bold text-neutral-200 tracking-wide">{item.topic}</h3>
+                           )}
+                           {(!item.topics && !item.practiceTasks && !item.revisionTasks && (item.description || item.Description)) && (
+                              <p className="text-xs text-neutral-400 mt-1">{item.description || item.Description}</p>
+                           )}
                         </div>
+                      </div>
+                      
+                      <div className="relative z-10 shrink-0 text-right w-full sm:w-auto">
+                        <button 
+                          onClick={() => handleAppendTask(item, idx)}
+                          disabled={appendedTasks.has(idx)}
+                          className={`w-full sm:w-auto text-[10px] font-mono border px-3 py-1.5 transition-all ${
+                            appendedTasks.has(idx)
+                              ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 cursor-not-allowed'
+                              : 'text-neutral-500 border-neutral-700 hover:text-indigo-400 hover:border-indigo-500/30 cursor-pointer'
+                          }`}
+                        >
+                          {appendedTasks.has(idx) ? '[ APPENDED ]' : '[ + APPEND TO TASKS ]'}
+                        </button>
                       </div>
                     </div>
                   ))}

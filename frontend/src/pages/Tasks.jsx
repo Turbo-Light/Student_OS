@@ -9,7 +9,8 @@ const Tasks = () => {
     title: '',
     description: '',
     priority: 'Medium',
-    dueDate: ''
+    deadline: '',
+    subject: ''
   });
 
   useEffect(() => {
@@ -23,7 +24,7 @@ const Tasks = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     addTask(formData);
-    setFormData({ title: '', description: '', priority: 'Medium', dueDate: '' });
+    setFormData({ title: '', description: '', priority: 'Medium', deadline: '', subject: '' });
   };
 
   const getPriorityColor = (priority) => {
@@ -34,6 +35,106 @@ const Tasks = () => {
       default: return 'bg-neutral-500';
     }
   };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const overdueTasks = tasks.filter(task => {
+    if (task.status === 'Completed') return false;
+    if (!task.deadline) return false;
+    const taskDate = new Date(task.deadline);
+    taskDate.setHours(0, 0, 0, 0);
+    return taskDate < today;
+  });
+
+  const upcomingTasks = tasks.filter(task => {
+    if (task.status === 'Completed') return false;
+    if (!task.deadline) return true;
+    const taskDate = new Date(task.deadline);
+    taskDate.setHours(0, 0, 0, 0);
+    return taskDate >= today;
+  });
+
+  const completedTasks = tasks.filter(task => task.status === 'Completed');
+
+  const renderTaskCard = (task) => (
+    <div 
+      key={task._id} 
+      className={`group flex items-start gap-4 p-4 border transition-all duration-300 ${
+        task.status === 'Completed' 
+          ? 'bg-neutral-950/40 border-neutral-800/40 opacity-60' 
+          : 'bg-neutral-950/80 border-neutral-700/50 hover:border-cyan-500/30 hover:bg-[#0b0d13]'
+      }`}
+    >
+      {/* Checkbox Toggle */}
+      <button 
+        onClick={() => updateTask(task._id, { status: task.status === 'Completed' ? 'Pending' : 'Completed' })}
+        className={`mt-1 shrink-0 w-5 h-5 border flex items-center justify-center transition-colors cursor-pointer ${
+          task.status === 'Completed' 
+            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+            : 'bg-neutral-900 border-neutral-600 hover:border-cyan-500 text-transparent hover:text-cyan-500/30'
+        }`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+        </svg>
+      </button>
+
+      {/* Content */}
+      <div className="flex-grow min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <h3 className={`text-sm font-bold truncate ${task.status === 'Completed' ? 'line-through text-neutral-500' : 'text-neutral-200'}`}>
+            {task.title}
+          </h3>
+          <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-neutral-900/80 border border-neutral-800">
+            <span className={`w-1.5 h-1.5 rounded-full ${getPriorityColor(task.priority)}`} />
+            <span className="text-[9px] font-mono uppercase text-neutral-400 tracking-wider">{task.priority}</span>
+          </div>
+          {task.subject && (
+            <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-indigo-900/20 border border-indigo-500/30">
+              <span className="text-[9px] font-mono uppercase text-indigo-400 tracking-wider">{task.subject}</span>
+            </div>
+          )}
+        </div>
+        
+        {task.description && (
+          <p className="text-xs text-neutral-400/80 line-clamp-2 leading-relaxed mb-3">
+            {task.description}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono text-neutral-500 uppercase tracking-wider">
+          {task.deadline && (
+            <span className={`flex items-center gap-1 ${task.status !== 'Completed' && new Date(task.deadline) < new Date(new Date().setHours(0,0,0,0)) ? 'text-rose-500' : ''}`}>
+              <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              TGT: {new Date(task.deadline).toLocaleDateString()}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            UPD: {new Date(task.updatedAt || task.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+        <button 
+          onClick={() => deleteTask(task._id)}
+          className="p-1.5 text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors cursor-pointer"
+          title="Purge Task"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#07090e] text-neutral-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 py-10 px-6 relative overflow-hidden">
@@ -83,6 +184,18 @@ const Tasks = () => {
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [SUBJECT]</label>
+                  <input 
+                    type="text" 
+                    name="subject"
+                    value={formData.subject}
+                    onChange={handleChange}
+                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-neutral-700"
+                    placeholder="e.g., Computer Architecture"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [DESCRIPTION]</label>
                   <textarea 
                     name="description"
@@ -109,11 +222,11 @@ const Tasks = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">TARGET [DUE_DATE]</label>
+                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">TARGET [DEADLINE]</label>
                     <input 
                       type="date" 
-                      name="dueDate"
-                      value={formData.dueDate}
+                      name="deadline"
+                      value={formData.deadline}
                       onChange={handleChange}
                       className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-400 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all"
                     />
@@ -133,7 +246,7 @@ const Tasks = () => {
           {/* Section B: Active Matrix */}
           <div className="lg:col-span-8">
             <div className="bg-neutral-900/20 border border-neutral-800/60 p-6 min-h-[500px]">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-6 border-b border-neutral-800/40 pb-4">
                 <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400">
                   <span className="text-cyan-500 mr-2">_</span>TASK_REGISTRY
                 </h2>
@@ -145,81 +258,37 @@ const Tasks = () => {
                   <p className="text-neutral-500 font-mono text-xs">NO ACTIVE DIRECTIVES IN MATRIX</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {tasks.map(task => (
-                    <div 
-                      key={task._id} 
-                      className={`group flex items-start gap-4 p-4 border transition-all duration-300 ${
-                        task.status === 'Completed' 
-                          ? 'bg-neutral-950/40 border-neutral-800/40 opacity-60' 
-                          : 'bg-neutral-950/80 border-neutral-700/50 hover:border-cyan-500/30 hover:bg-[#0b0d13]'
-                      }`}
-                    >
-                      {/* Checkbox Toggle */}
-                      <button 
-                        onClick={() => updateTask(task._id, { status: task.status === 'Completed' ? 'Pending' : 'Completed' })}
-                        className={`mt-1 shrink-0 w-5 h-5 border flex items-center justify-center transition-colors cursor-pointer ${
-                          task.status === 'Completed' 
-                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
-                            : 'bg-neutral-900 border-neutral-600 hover:border-cyan-500 text-transparent hover:text-cyan-500/30'
-                        }`}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </button>
-
-                      {/* Content */}
-                      <div className="flex-grow min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className={`text-sm font-bold truncate ${task.status === 'Completed' ? 'line-through text-neutral-500' : 'text-neutral-200'}`}>
-                            {task.title}
-                          </h3>
-                          <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-neutral-900/80 border border-neutral-800">
-                            <span className={`w-1.5 h-1.5 rounded-full ${getPriorityColor(task.priority)}`} />
-                            <span className="text-[9px] font-mono uppercase text-neutral-400 tracking-wider">{task.priority}</span>
-                          </div>
-                        </div>
-                        
-                        {task.description && (
-                          <p className="text-xs text-neutral-400/80 line-clamp-2 leading-relaxed mb-3">
-                            {task.description}
-                          </p>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono text-neutral-500 uppercase tracking-wider">
-                          {task.dueDate && (
-                            <span className="flex items-center gap-1">
-                              <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              TGT: {new Date(task.dueDate).toLocaleDateString()}
-                            </span>
-                          )}
-                          <span className="flex items-center gap-1">
-                            <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            UPD: {new Date(task.updatedAt || task.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => deleteTask(task._id)}
-                          className="p-1.5 text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors cursor-pointer"
-                          title="Purge Task"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-
+                <div className="space-y-8">
+                  {/* OVERDUE SECTOR */}
+                  {overdueTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-[10px] font-mono text-rose-500 tracking-[0.2em] border-b border-rose-500/20 pb-2 mb-4 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                        CRITICAL // OVERDUE
+                      </h3>
+                      {overdueTasks.map(task => renderTaskCard(task))}
                     </div>
-                  ))}
+                  )}
+
+                  {/* UPCOMING SECTOR */}
+                  {upcomingTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-[10px] font-mono text-cyan-500 tracking-[0.2em] border-b border-cyan-500/20 pb-2 mb-4">
+                        ACTIVE // UPCOMING
+                      </h3>
+                      {upcomingTasks.map(task => renderTaskCard(task))}
+                    </div>
+                  )}
+
+                  {/* COMPLETED SECTOR */}
+                  {completedTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-[10px] font-mono text-neutral-500 tracking-[0.2em] border-b border-neutral-800 pb-2 mb-4">
+                        ARCHIVE // COMPLETED
+                      </h3>
+                      {completedTasks.map(task => renderTaskCard(task))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

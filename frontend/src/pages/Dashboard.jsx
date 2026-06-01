@@ -140,13 +140,13 @@ const Dashboard = () => {
                 to="/tasks" 
                 className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] sm:text-xs font-bold hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all group"
               >
-                <span>[LAUNCH TASK MATRIX]</span>
+                <span>[TASKS]</span>
               </Link>
               <Link 
                 to="/ai-planner" 
                 className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono text-[10px] sm:text-xs font-bold hover:bg-indigo-500/20 hover:border-indigo-400 hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-all group"
               >
-                <span>[NEURAL PLANNER]</span>
+                <span>[AI PLANNER]</span>
               </Link>
             </div>
 
