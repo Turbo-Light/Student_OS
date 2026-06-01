@@ -5,7 +5,9 @@ import { TaskContext } from '../context/TaskContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AIPlanner = () => {
+  const [inputMode, setInputMode] = useState('text');
   const [syllabusText, setSyllabusText] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
   const [examDate, setExamDate] = useState('');
   const [hoursPerDay, setHoursPerDay] = useState(2);
   const [plan, setPlan] = useState([]);
@@ -46,14 +48,36 @@ const AIPlanner = () => {
       const diffTime = Math.abs(target - today);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      const response = await fetch(`${API_URL}/api/ai/generate/text`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ syllabusText, examDate, hoursPerDay, days: diffDays })
-      });
+      let response;
+      if (inputMode === 'text') {
+        response = await fetch(`${API_URL}/api/ai/generate/text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ syllabusText, examDate, hoursPerDay, days: diffDays })
+        });
+      } else {
+        if (!selectedImage) {
+          setError('Please select a syllabus image to upload.');
+          setIsGenerating(false);
+          return;
+        }
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        formData.append('examDate', examDate);
+        formData.append('hoursPerDay', hoursPerDay);
+        formData.append('days', diffDays);
+
+        response = await fetch(`${API_URL}/api/ai/generate/image`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: formData
+        });
+      }
 
       const data = await response.json();
       
@@ -100,21 +124,91 @@ const AIPlanner = () => {
           {/* Section A: Command Input */}
           <div className="lg:col-span-4">
             <div className="bg-neutral-950/80 backdrop-blur-xl border border-neutral-800 p-6 shadow-2xl shadow-indigo-950/10 sticky top-10">
-              <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400 mb-6 border-b border-neutral-800 pb-2">
+              <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400 mb-4 border-b border-neutral-800 pb-2">
                 &gt; Initialize_Generation
               </h2>
               
+              {/* Sleek Toggle Button Group */}
+              <div className="flex border border-neutral-850 p-0.5 bg-[#0b0d13] mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setInputMode('text'); setError(null); }}
+                  className={`flex-1 py-1.5 text-center font-mono text-[10px] tracking-wider transition-all cursor-pointer ${
+                    inputMode === 'text'
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  TEXT MODE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setInputMode('image'); setError(null); }}
+                  className={`flex-1 py-1.5 text-center font-mono text-[10px] tracking-wider transition-all cursor-pointer ${
+                    inputMode === 'image'
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  IMAGE MODE
+                </button>
+              </div>
+
               <form onSubmit={handleGenerate} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS DATA [PASTE TOPICS]</label>
-                  <textarea 
-                    value={syllabusText}
-                    onChange={(e) => setSyllabusText(e.target.value)}
-                    required
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-neutral-700 min-h-[120px]"
-                    placeholder="e.g., Module 1: Processor Pipelining, Module 2: Cache Coherence..."
-                  />
-                </div>
+                {inputMode === 'text' ? (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS DATA [PASTE TOPICS]</label>
+                    <textarea 
+                      value={syllabusText}
+                      onChange={(e) => setSyllabusText(e.target.value)}
+                      required
+                      className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-neutral-700 min-h-[120px]"
+                      placeholder="e.g., Module 1: Processor Pipelining, Module 2: Cache Coherence..."
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS IMAGE [UPLOAD SCREENSHOT]</label>
+                    <div className="relative border border-dashed border-neutral-800 hover:border-indigo-500/50 bg-[#0b0d13] p-4 text-center cursor-pointer transition-all min-h-[120px] flex items-center justify-center">
+                      <input
+                        type="file"
+                        accept=".png, .jpg, .jpeg"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSelectedImage(e.target.files[0]);
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        required={inputMode === 'image' && !selectedImage}
+                      />
+                      <div className="space-y-1">
+                        <svg className="mx-auto h-8 w-8 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-[10px] font-mono text-neutral-400">
+                          {selectedImage ? selectedImage.name : 'CLICK TO UPLOAD SCREENSHOT'}
+                        </p>
+                        <p className="text-[8px] font-mono text-neutral-600">PNG, JPG, JPEG UP TO 10MB</p>
+                      </div>
+                    </div>
+                    {selectedImage && (
+                      <div className="mt-2 p-1 bg-neutral-900 border border-neutral-800 relative">
+                        <img
+                          src={URL.createObjectURL(selectedImage)}
+                          alt="Syllabus Preview"
+                          className="max-h-32 mx-auto object-contain border border-neutral-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImage(null)}
+                          className="text-[9px] font-mono text-rose-500 hover:text-rose-400 mt-1 cursor-pointer block mx-auto uppercase tracking-wider"
+                        >
+                          [ REMOVE IMAGE ]
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">TARGET [EXAM_DATE]</label>
