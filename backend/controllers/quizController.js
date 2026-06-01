@@ -38,6 +38,7 @@ export const generateDailyQuiz = async (req, res) => {
       return {
         ...q,
         type: safeType,
+        correctAnswer: q.correctAnswer || "See explanation",
         explanation: q.explanation || "Detailed explanation will be provided during review."
       };
     });
