@@ -2,13 +2,13 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import MockExam from '../models/MockExam.js';
 
 export const generateMockExam = async (req, res) => {
-  const { subject, syllabusText, durationMinutes, questionType, questionCount } = req.body;
+  const { subject, syllabusText, examDuration, questionType, questionCount } = req.body;
 
   if (!subject || !syllabusText) {
     return res.status(400).json({ message: 'Missing required fields (subject, syllabusText)' });
   }
 
-  const duration = durationMinutes || 120;
+  const duration = examDuration || 120;
   const qType = questionType || 'mixed';
   const qCount = questionCount || 5;
 
@@ -34,9 +34,12 @@ export const generateMockExam = async (req, res) => {
 
 ${sectionRules}
 
-You MUST return a JSON object strictly matching this exact structure:
+Analyze the provided subject/syllabus. If the subject involves programming languages, software development, data structures, or coding, the subjective questions MUST be practical coding problems, code analysis, debugging tasks, or algorithm design. Do not generate theoretical or conceptual essay questions for coding subjects.
+
+You MUST return a JSON object strictly matching this exact structure for the sections you are instructed to generate (omit sections that were not requested):
 {
   "sections": [
+    // Example Objective Section (Include only if requested)
     {
       "sectionName": "Part A: Objective",
       "instructions": "Choose the correct answer for each question.",
@@ -50,6 +53,7 @@ You MUST return a JSON object strictly matching this exact structure:
         }
       ]
     },
+    // Example Subjective Section (Include only if requested)
     {
       "sectionName": "Part B: Subjective",
       "instructions": "Answer all questions in detail.",
