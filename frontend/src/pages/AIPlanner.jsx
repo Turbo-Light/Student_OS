@@ -27,6 +27,12 @@ const AIPlanner = () => {
   // Mock Exam States
   const [activeMockExam, setActiveMockExam] = useState(null);
   const [generatingMockExam, setGeneratingMockExam] = useState(false);
+  const [showMockExamConfig, setShowMockExamConfig] = useState(false);
+  const [examConfig, setExamConfig] = useState({
+    durationMinutes: 60,
+    questionType: 'mixed',
+    questionCount: 5
+  });
 
   const handleAppendTask = (item, idx) => {
     // Creating a combined description from topics, practice, and revision
@@ -147,7 +153,9 @@ const AIPlanner = () => {
     }
   };
 
-  const handleGenerateMockExam = async () => {
+  const handleGenerateMockExam = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setShowMockExamConfig(false);
     setGeneratingMockExam(true);
     setError(null);
 
@@ -164,7 +172,10 @@ const AIPlanner = () => {
         },
         body: JSON.stringify({
           subject: derivedSubject,
-          syllabusText: syllabusText || 'Analyze topics generated in the study plan.'
+          syllabusText: syllabusText || 'Analyze topics generated in the study plan.',
+          durationMinutes: examConfig.durationMinutes,
+          questionType: examConfig.questionType,
+          questionCount: examConfig.questionCount
         })
       });
 
@@ -447,7 +458,7 @@ const AIPlanner = () => {
                   {plan && plan.length > 0 && (
                   <div className="pt-8 border-t border-neutral-800/40 text-center">
                     <button
-                      onClick={handleGenerateMockExam}
+                      onClick={() => setShowMockExamConfig(true)}
                       disabled={generatingMockExam}
                       className={`px-8 py-4 font-mono font-bold tracking-widest text-sm border transition-all cursor-pointer inline-flex items-center gap-3 ${
                         generatingMockExam
@@ -485,6 +496,82 @@ const AIPlanner = () => {
           dayNumber={quizDay}
           onClose={() => setActiveQuizData(null)}
         />
+      )}
+
+      {/* Mock Exam Configuration Modal */}
+      {showMockExamConfig && (
+        <div className="fixed inset-0 z-50 bg-[#07090e]/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-neutral-950 border border-rose-500/30 p-8 max-w-md w-full shadow-[0_0_30px_rgba(244,63,94,0.1)] font-sans relative">
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-rose-500/50 shadow-[0_0_10px_#f43f5e] animate-pulse" />
+            <h2 className="text-lg font-mono font-bold text-rose-400 mb-6 uppercase tracking-widest border-b border-neutral-800 pb-4">
+              [ EXAM CONFIGURATION ]
+            </h2>
+
+            <form onSubmit={handleGenerateMockExam} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">DURATION [MINUTES]</label>
+                <input
+                  type="number"
+                  min="5"
+                  max="180"
+                  required
+                  value={examConfig.durationMinutes}
+                  onChange={e => setExamConfig({ ...examConfig, durationMinutes: Number(e.target.value) })}
+                  className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">QUESTION TYPE</label>
+                <div className="flex gap-2">
+                  {['objective', 'subjective', 'mixed'].map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setExamConfig({ ...examConfig, questionType: type })}
+                      className={`flex-1 py-2 font-mono text-[10px] tracking-widest uppercase border transition-all ${
+                        examConfig.questionType === type
+                          ? 'bg-rose-500/10 border-rose-500 text-rose-300'
+                          : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">QUESTION COUNT [MAX: 15]</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="15"
+                  required
+                  value={examConfig.questionCount}
+                  onChange={e => setExamConfig({ ...examConfig, questionCount: Number(e.target.value) })}
+                  className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50"
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setShowMockExamConfig(false)}
+                  className="flex-1 py-2 border border-neutral-800 text-neutral-500 hover:text-neutral-300 font-mono text-xs tracking-wider transition-all"
+                >
+                  [ ABORT ]
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-rose-500/10 border border-rose-500/60 text-rose-400 hover:bg-rose-500/20 font-mono text-xs tracking-wider transition-all"
+                >
+                  [ LAUNCH ]
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Mock Exam Modal Overlay */}

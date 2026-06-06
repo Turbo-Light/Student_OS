@@ -2,10 +2,25 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import MockExam from '../models/MockExam.js';
 
 export const generateMockExam = async (req, res) => {
-  const { subject, syllabusText } = req.body;
+  const { subject, syllabusText, durationMinutes, questionType, questionCount } = req.body;
 
   if (!subject || !syllabusText) {
     return res.status(400).json({ message: 'Missing required fields (subject, syllabusText)' });
+  }
+
+  const duration = durationMinutes || 120;
+  const qType = questionType || 'mixed';
+  const qCount = questionCount || 5;
+
+  let sectionRules = '';
+  if (qType === 'objective') {
+    sectionRules = `You MUST generate exactly ONE section: 'Part A: Objective' containing exactly ${qCount} MCQs.`;
+  } else if (qType === 'subjective') {
+    sectionRules = `You MUST generate exactly ONE section: 'Part B: Subjective' containing exactly ${qCount} Short Answer or Coding questions, choosing Coding only if the subject involves programming, mathematics, or applied logic.`;
+  } else {
+    const objectiveCount = Math.ceil(qCount / 2);
+    const subjectiveCount = Math.floor(qCount / 2) || 1;
+    sectionRules = `You MUST generate exactly TWO sections: 'Part A: Objective' (${objectiveCount} MCQs) and 'Part B: Subjective' (${subjectiveCount} Short Answer or Coding questions).`;
   }
 
   try {
@@ -17,7 +32,7 @@ export const generateMockExam = async (req, res) => {
 
     const prompt = `You are a strict University Professor creating a final mock exam for the subject '${subject}' based entirely on this syllabus: '${syllabusText}'.
 
-You MUST generate exactly TWO sections: 'Part A: Objective' (10 MCQs) and 'Part B: Subjective' (5 Short Answer or Coding questions, choosing Coding only if the subject involves programming, mathematics, or applied logic).
+${sectionRules}
 
 You MUST return a JSON object strictly matching this exact structure:
 {
@@ -93,6 +108,7 @@ CRITICAL RULES:
       userId: req.user._id,
       subject,
       syllabus: syllabusText,
+      durationMinutes: duration,
       sections: sanitizedSections,
     });
 
