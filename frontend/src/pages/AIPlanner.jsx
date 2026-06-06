@@ -444,7 +444,7 @@ const AIPlanner = () => {
                     </div>
                   ))}
 
-                  {generatedPlan && generatedPlan.length > 0 && (
+                  {plan && plan.length > 0 && (
                   <div className="pt-8 border-t border-neutral-800/40 text-center">
                     <button
                       onClick={handleGenerateMockExam}
