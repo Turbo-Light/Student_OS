@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import mongoose from 'mongoose';
 import Task from '../models/Task.js';
 import User from '../models/User.js';
 import sendEmail from '../utils/sendEmail.js';
@@ -26,6 +27,11 @@ const runDeadlineCheck = async () => {
     const windowEnd   = new Date(now.getTime() + WARN_WINDOW_MS.max);
 
     // Find all non-completed tasks whose deadline falls inside the 23-25h window
+    if (mongoose.connection.readyState !== 1) {
+      console.warn("[CronService] Database not yet connected. Skipping deadline check.");
+      return;
+    }
+
     const upcomingTasks = await Task.find({
       status:   { $ne: 'Completed' },
       deadline: { $gte: windowStart, $lte: windowEnd },
