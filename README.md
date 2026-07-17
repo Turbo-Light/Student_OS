@@ -4,6 +4,8 @@ AI Student OS is a full-stack web application built to simplify the way students
 
 The long-term vision is to build an AI learning companion that not only helps students organize their work but also guides them through the entire learning process—from planning and revision to assessments and performance analysis.
 
+🌐 **Live Demo:** https://student-os-delta.vercel.app/
+
 ## Features
 
 Current version includes:
@@ -13,13 +15,13 @@ Current version includes:
 - AI-generated study plans
 - XP and streak system
 - Progress dashboard
-
-The next version will introduce:
-
 - Email reminders for approaching deadlines
 - AI planner with image and text-based syllabus input
 - Daily AI-generated quizzes
 - Full-length mock examinations
+
+The next version will introduce:
+
 - Context-aware AI chat assistant
 - Learning analytics and performance insights
 
@@ -43,17 +45,18 @@ Database
 
 AI
 
-- Gemini API / OpenAI API
+- Gemini API 
 
-## Project Structure
 
-```text
-client/
-server/
-docs/
-```
+## How it looks
 
-## Getting Started
+<img width="1902" height="967" alt="image" src="https://github.com/user-attachments/assets/03753b71-e012-48da-b18d-dab3b92d0911" />
+
+<img width="1917" height="960" alt="image" src="https://github.com/user-attachments/assets/8f5b7cbf-1d58-4a40-a83a-09c947061878" />
+
+
+
+## Getting Started Locally
 
 Clone the repository
 
