@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { TaskContext } from '../context/TaskContext';
-import { Link } from 'react-router-dom';
 
 const Tasks = () => {
   const { tasks, isLoading, fetchTasks, addTask, updateTask, deleteTask } = useContext(TaskContext);
@@ -145,19 +144,16 @@ const Tasks = () => {
       <div className="w-full max-w-7xl mx-auto relative z-10">
         
         {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-neutral-800 pb-6 mb-8 gap-4">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-6 mb-8 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]" />
-              <p className="text-xs uppercase tracking-[0.25em] font-mono text-cyan-400 font-bold">MODULE // TASK_MATRIX</p>
+              <span className="h-2 w-2 rounded-full bg-cyan shadow-[0_0_8px_#22D3EE] animate-pulse" />
+              <p className="text-[11px] uppercase tracking-[0.04em] font-mono text-cyan font-medium">MODULE // TASK_MATRIX</p>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-50 via-neutral-100 to-neutral-400">
+            <h1 className="text-3xl font-display font-semibold tracking-tight text-text-primary">
               Active Directives
             </h1>
           </div>
-          <Link to="/" className="text-xs font-mono text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 hover:border-cyan-400/60 px-4 py-2 rounded bg-cyan-500/5 transition-all">
-            [RETURN TO DASHBOARD]
-          </Link>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">

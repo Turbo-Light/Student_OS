@@ -7,12 +7,13 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Tasks from './pages/Tasks';
 import AIPlanner from './pages/AIPlanner';
+import GlobalShell from './components/GlobalShell';
 import { Toaster } from 'react-hot-toast';
 
 const App = () => {
   return (
     <BrowserRouter>
-      <Toaster toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid #333', fontFamily: 'monospace' } }} />
+      <Toaster toastOptions={{ style: { background: '#0D141B', color: '#F2F5F7', border: '1px solid rgba(255,255,255,0.14)', fontFamily: 'JetBrains Mono, monospace' } }} />
       <AuthProvider>
         <TaskProvider>
           <Routes>
@@ -20,7 +21,9 @@ const App = () => {
               path="/" 
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <GlobalShell>
+                    <Dashboard />
+                  </GlobalShell>
                 </ProtectedRoute>
               } 
             />
@@ -28,7 +31,9 @@ const App = () => {
               path="/tasks" 
               element={
                 <ProtectedRoute>
-                  <Tasks />
+                  <GlobalShell>
+                    <Tasks />
+                  </GlobalShell>
                 </ProtectedRoute>
               } 
             />
@@ -36,7 +41,9 @@ const App = () => {
               path="/ai-planner" 
               element={
                 <ProtectedRoute>
-                  <AIPlanner />
+                  <GlobalShell>
+                    <AIPlanner />
+                  </GlobalShell>
                 </ProtectedRoute>
               } 
             />

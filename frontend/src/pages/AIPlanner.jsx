@@ -1,5 +1,4 @@
 import React, { useState, useContext } from 'react';
-import { Link } from 'react-router-dom';
 import { TaskContext } from '../context/TaskContext';
 import QuizPlayer from './QuizPlayer';
 import MockExamPlayer from './MockExamPlayer';
@@ -204,19 +203,16 @@ const AIPlanner = () => {
       <div className="max-w-6xl mx-auto relative z-10">
         
         {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-neutral-800 pb-6 mb-8 gap-4">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-6 mb-8 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8]" />
-              <p className="text-xs uppercase tracking-[0.25em] font-mono text-indigo-400 font-bold">MODULE // AI_PLANNER</p>
+              <span className="h-2 w-2 rounded-full bg-violet shadow-[0_0_8px_#A78BFA] animate-pulse" />
+              <p className="text-[11px] uppercase tracking-[0.04em] font-mono text-violet font-medium">MODULE // AI_PLANNER</p>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-50 via-neutral-100 to-neutral-400">
+            <h1 className="text-3xl font-display font-semibold tracking-tight text-text-primary">
               AI Study Assistant
             </h1>
           </div>
-          <Link to="/" className="text-xs font-mono text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-400/60 px-4 py-2 rounded bg-indigo-500/5 transition-all">
-            [RETURN TO DASHBOARD]
-          </Link>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">

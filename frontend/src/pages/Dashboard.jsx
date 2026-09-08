@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -122,44 +121,29 @@ const Dashboard = () => {
 
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
         
-        {/* Navigation / Header bar */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-neutral-800 pb-6 mb-12 gap-4">
+        {/* Header bar */}
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border-subtle pb-6 mb-12 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]" />
-              <p className="text-xs uppercase tracking-[0.25em] font-mono text-cyan-400 font-bold">AI Student OS v1.0.0</p>
+              <span className="h-2 w-2 rounded-full bg-cyan shadow-[0_0_8px_#22D3EE] animate-pulse" />
+              <p className="text-[11px] uppercase tracking-[0.04em] font-mono text-cyan font-medium">AI Student OS v1.0.0</p>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-50 via-neutral-100 to-neutral-400">
+            <h1 className="text-3xl font-display font-semibold tracking-tight text-text-primary">
               Control Center
             </h1>
           </div>
           
-          <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link 
-                to="/tasks" 
-                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] sm:text-xs font-bold hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all group"
-              >
-                <span>[TASKS]</span>
-              </Link>
-              <Link 
-                to="/ai-planner" 
-                className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono text-[10px] sm:text-xs font-bold hover:bg-indigo-500/20 hover:border-indigo-400 hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-all group"
-              >
-                <span>[AI PLANNER]</span>
-              </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-surface-raised/80 backdrop-blur-md px-3.5 py-1.5 rounded-md border border-border-subtle">
+              <span className="text-[10px] font-mono text-text-secondary tracking-wider">DB CLUSTER</span>
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${healthData ? 'bg-success animate-ping' : 'bg-danger'} absolute`} />
+                <span className={`h-2 w-2 rounded-full ${healthData ? 'bg-success shadow-[0_0_8px_#34D399]' : 'bg-danger shadow-[0_0_8px_#FB7185]'}`} />
+                <span className="text-xs font-mono font-semibold text-text-primary">
+                  {loading ? 'RESOLVING...' : (healthData ? 'EMBEDDED_LOCAL' : 'OFFLINE')}
+                </span>
+              </div>
             </div>
-
-            <div className="flex items-center gap-4 bg-neutral-900/60 backdrop-blur-md px-4 py-2 rounded-lg border border-neutral-800/80">
-              <span className="text-xs font-mono text-neutral-400">DB CLUSTER</span>
-            <div className="flex items-center gap-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${healthData ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'} absolute`} />
-              <span className={`h-2.5 w-2.5 rounded-full ${healthData ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`} />
-              <span className="text-xs font-mono font-bold text-neutral-200">
-                {loading ? 'RESOLVING...' : (healthData ? 'EMBEDDED_LOCAL' : 'OFFLINE')}
-              </span>
-            </div>
-          </div>
           </div>
         </header>
 
