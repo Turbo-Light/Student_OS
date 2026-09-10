@@ -7,6 +7,7 @@ import taskRoutes from './routes/taskRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
 import mockExamRoutes from './routes/mockExamRoutes.js';
+import focusRoutes from './routes/focusRoutes.js';
 import initCronService from './services/cronService.js';
 
 // Load environment variables from .env file
@@ -34,6 +35,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/mock-exams', mockExamRoutes);
+app.use('/api/focus', focusRoutes);
 
 // Base health check route
 app.get('/api/health', (req, res) => {

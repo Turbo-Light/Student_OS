@@ -43,7 +43,7 @@ export const TaskProvider = ({ children }) => {
       if (res.ok) {
         const newTask = await res.json();
         setTasks(prev => [...prev, newTask]);
-        toast.success('Directive Appended');
+        toast.success('Task Created');
       }
     } catch (error) {
       console.error('Failed to add task:', error);
@@ -82,7 +82,7 @@ export const TaskProvider = ({ children }) => {
       });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t._id !== id));
-        toast.success('Directive Terminated');
+        toast.success('Task Deleted');
       }
     } catch (error) {
       console.error('Failed to delete task:', error);

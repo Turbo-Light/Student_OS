@@ -22,7 +22,7 @@ const getTasks = async (req, res) => {
  */
 const createTask = async (req, res) => {
   try {
-    const { title, description, priority, status, dueDate, deadline, subject } = req.body;
+    const { title, description, priority, status, dueDate, deadline, subject, isAiGenerated, source } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: 'Task title is required.' });
@@ -37,6 +37,8 @@ const createTask = async (req, res) => {
       dueDate,
       deadline,
       subject,
+      isAiGenerated: Boolean(isAiGenerated || source === 'ai' || source === 'AI'),
+      source: source || (isAiGenerated ? 'ai' : 'user'),
     });
 
     res.status(201).json(task);

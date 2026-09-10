@@ -1,7 +1,9 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { TaskContext } from '../context/TaskContext';
+import { FocusContext, useFocus } from '../context/FocusContext';
 import QuizPlayer from './QuizPlayer';
 import MockExamPlayer from './MockExamPlayer';
+import { Sparkles, Calendar, Clock, BookOpen, Upload, AlertCircle, Plus, Check, Target, Pencil } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -11,10 +13,15 @@ const AIPlanner = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [examDate, setExamDate] = useState('');
   const [hoursPerDay, setHoursPerDay] = useState(2);
-  const [plan, setPlan] = useState([]);
+  const [savedPlans, setSavedPlans] = useState([]);
+  const [activePlan, setActivePlan] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
   const { addTask } = useContext(TaskContext);
+  const { openFocusLauncher, openFocusModal } = useContext(FocusContext) || {};
   const [appendedTasks, setAppendedTasks] = useState(new Set());
 
   // Quiz Integration States
@@ -33,8 +40,46 @@ const AIPlanner = () => {
     questionCount: 5
   });
 
+  // Fetch all saved study plans on mount
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setIsCreating(true);
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/api/ai/plans`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setSavedPlans(data);
+            setActivePlan(data[0]);
+            setIsCreating(false);
+          } else {
+            setSavedPlans([]);
+            setActivePlan(null);
+            setIsCreating(true);
+          }
+        } else {
+          setIsCreating(true);
+        }
+      } catch (err) {
+        console.error('Failed to fetch study plans:', err);
+        setIsCreating(true);
+      }
+    };
+
+    fetchPlans();
+  }, []);
+
   const handleAppendTask = (item, idx) => {
-    // Creating a combined description from topics, practice, and revision
     let desc = '';
     if (item.topics) desc += `Topics: ${item.topics}\n`;
     if (item.practiceTasks) desc += `Practice: ${item.practiceTasks}\n`;
@@ -48,22 +93,72 @@ const AIPlanner = () => {
       title: item.topic || `Study Day ${item.day}`, 
       description: desc, 
       priority: 'High', 
-      status: 'Pending' 
+      status: 'Pending',
+      isAiGenerated: true,
+      source: 'ai'
     });
     setAppendedTasks(prev => new Set(prev).add(idx));
+  };
+
+  const handleRename = async (planId, e) => {
+    if (e) e.stopPropagation();
+    const trimmedTitle = editTitle.trim();
+    if (!trimmedTitle) {
+      setEditingPlanId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/ai/plans/${planId}/rename`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ title: trimmedTitle })
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        const newSubject = updated.subject || trimmedTitle;
+
+        setSavedPlans(prev => prev.map(p => {
+          if (p._id === planId) {
+            return { ...p, subject: newSubject };
+          }
+          return p;
+        }));
+
+        setActivePlan(prev => {
+          if (prev && prev._id === planId) {
+            return { ...prev, subject: newSubject };
+          }
+          return prev;
+        });
+
+        setEditingPlanId(null);
+      } else {
+        const errData = await response.json();
+        setError(errData.message || 'Failed to rename study plan.');
+      }
+    } catch (err) {
+      console.error('Rename error:', err);
+      setError('Failed to rename study plan.');
+    }
   };
 
   const handleGenerate = async (e) => {
     e.preventDefault();
     setIsGenerating(true);
     setError(null);
-    setPlan([]);
 
     try {
       const today = new Date();
       const target = new Date(examDate);
       const diffTime = Math.abs(target - today);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (!diffDays || isNaN(diffDays) || diffDays < 1) diffDays = 7;
+      if (diffDays > 30) diffDays = 14;
 
       let response;
       if (inputMode === 'text') {
@@ -99,13 +194,45 @@ const AIPlanner = () => {
       const data = await response.json();
       
       if (response.ok) {
-        setPlan(data.studyPlan || data.plan || []);
+        const generatedDays = data.studyPlan || data.plan || [];
+        const planSubject = data.title || data.planDoc?.subject || ((syllabusText && syllabusText.trim().length > 0) 
+          ? syllabusText.split('\n')[0].substring(0, 50) 
+          : (selectedImage ? selectedImage.name.split('.')[0] : 'Study Plan'));
+
+        const newPlan = data.planDoc || {
+          _id: Date.now().toString(),
+          subject: planSubject,
+          examDate,
+          dailyHours: hoursPerDay,
+          plan: generatedDays,
+          createdAt: new Date().toISOString()
+        };
+
+        setSavedPlans(prev => [newPlan, ...prev.filter(p => p._id !== newPlan._id)]);
+        setActivePlan(newPlan);
+        setIsCreating(false);
+
+        // Background refresh from server to ensure complete document state
+        try {
+          const freshRes = await fetch(`${API_URL}/api/ai/plans`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          if (freshRes.ok) {
+            const freshData = await freshRes.json();
+            if (Array.isArray(freshData) && freshData.length > 0) {
+              setSavedPlans(freshData);
+              setActivePlan(freshData[0]);
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Could not sync latest plans list:', syncErr);
+        }
       } else {
         setError(data.message || 'Generation failed.');
       }
     } catch (err) {
       console.error('AI Generation Error:', err);
-      setError('Neural link disconnected. Failed to reach AI node.');
+      setError('Failed to reach AI service. Please check your network connection.');
     } finally {
       setIsGenerating(false);
     }
@@ -116,9 +243,10 @@ const AIPlanner = () => {
     setError(null);
     
     try {
-      const derivedSubject = (syllabusText && syllabusText.trim().length > 0) 
-                             ? syllabusText.split('\n')[0].substring(0, 50) 
-                             : (selectedImage ? selectedImage.name.split('.')[0] : 'Daily Syllabus Revision');
+      const derivedSubject = activePlan?.subject || 
+                             ((syllabusText && syllabusText.trim().length > 0) 
+                               ? syllabusText.split('\n')[0].substring(0, 50) 
+                               : (selectedImage ? selectedImage.name.split('.')[0] : 'Daily Syllabus Revision'));
 
       const topicsArray = Array.isArray(dayItem.topics) ? dayItem.topics : [dayItem.topics || `Study Day ${dayItem.day}`];
 
@@ -146,7 +274,7 @@ const AIPlanner = () => {
       }
     } catch (err) {
       console.error('Quiz Generation Error:', err);
-      setError('Failed to reach Quiz Engine.');
+      setError('Failed to connect to Quiz Engine.');
     } finally {
       setGeneratingQuizDay(null);
     }
@@ -159,9 +287,14 @@ const AIPlanner = () => {
     setError(null);
 
     try {
-      const derivedSubject = (syllabusText && syllabusText.trim().length > 0) 
-                             ? syllabusText.split('\n')[0].substring(0, 50) 
-                             : (selectedImage ? selectedImage.name.split('.')[0] : 'Comprehensive AI Syllabus Review');
+      const derivedSubject = activePlan?.subject ||
+                             ((syllabusText && syllabusText.trim().length > 0) 
+                               ? syllabusText.split('\n')[0].substring(0, 50) 
+                               : (selectedImage ? selectedImage.name.split('.')[0] : 'Comprehensive AI Syllabus Review'));
+
+      const examSyllabus = (activePlan?.plan && Array.isArray(activePlan.plan))
+        ? activePlan.plan.map(d => `Day ${d.day}: ${Array.isArray(d.topics) ? d.topics.join(', ') : (d.topics || d.topic || '')}`).join('\n')
+        : (syllabusText || 'Analyze topics generated in the study plan.');
 
       const response = await fetch(`${API_URL}/api/mock-exams/generate`, {
         method: 'POST',
@@ -171,7 +304,7 @@ const AIPlanner = () => {
         },
         body: JSON.stringify({
           subject: derivedSubject,
-          syllabusText: syllabusText || 'Analyze topics generated in the study plan.',
+          syllabusText: examSyllabus,
           durationMinutes: examConfig.durationMinutes,
           questionType: examConfig.questionType,
           questionCount: examConfig.questionCount
@@ -187,29 +320,28 @@ const AIPlanner = () => {
       }
     } catch (err) {
       console.error('Mock Exam Generation Error:', err);
-      setError('Failed to reach AI Evaluator node.');
+      setError('Failed to generate mock exam.');
     } finally {
       setGeneratingMockExam(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-neutral-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 py-10 px-6 relative overflow-hidden">
-      {/* Decorative Grid */}
+    <div className="min-h-screen bg-base text-text-primary font-sans selection:bg-violet-dim selection:text-violet py-8 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Decorative subtle background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f29370a_1px,transparent_1px),linear-gradient(to_bottom,#1f29370a_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[500px] h-[300px] bg-indigo-500/5 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-[500px] h-[250px] bg-violet/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 left-10 w-[400px] h-[300px] bg-cyan/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="max-w-6xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto relative z-10 space-y-8">
         
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-6 mb-8 gap-4">
+        {/* Page Header */}
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-5 gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-violet shadow-[0_0_8px_#A78BFA] animate-pulse" />
-              <p className="text-[11px] uppercase tracking-[0.04em] font-mono text-violet font-medium">MODULE // AI_PLANNER</p>
-            </div>
-            <h1 className="text-3xl font-display font-semibold tracking-tight text-text-primary">
+            <p className="text-xs font-sans text-violet font-medium uppercase tracking-wider mb-1">
+              AI Planner
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-text-primary">
               AI Study Assistant
             </h1>
           </div>
@@ -217,267 +349,505 @@ const AIPlanner = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
           
-          {/* Section A: Command Input */}
+          {/* Section A: Command Input / Saved Plans Library */}
           <div className="lg:col-span-4">
-            <div className="bg-neutral-950/80 backdrop-blur-xl border border-neutral-800 p-6 shadow-2xl shadow-indigo-950/10 sticky top-10">
-              <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400 mb-4 border-b border-neutral-800 pb-2">
-                &gt; Initialize_Generation
-              </h2>
-              
-              {/* Sleek Toggle Button Group */}
-              <div className="flex border border-neutral-850 p-0.5 bg-[#0b0d13] mb-4">
-                <button
-                  type="button"
-                  onClick={() => { setInputMode('text'); setError(null); }}
-                  className={`flex-1 py-1.5 text-center font-mono text-[10px] tracking-wider transition-all cursor-pointer ${
-                    inputMode === 'text'
-                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                      : 'text-neutral-500 hover:text-neutral-300'
-                  }`}
-                >
-                  TEXT MODE
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setInputMode('image'); setError(null); }}
-                  className={`flex-1 py-1.5 text-center font-mono text-[10px] tracking-wider transition-all cursor-pointer ${
-                    inputMode === 'image'
-                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                      : 'text-neutral-500 hover:text-neutral-300'
-                  }`}
-                >
-                  IMAGE MODE
-                </button>
-              </div>
+            {!isCreating ? (
+              /* SAVED PLANS LIBRARY VIEW */
+              <div className="bg-surface border border-border-subtle rounded-lg p-6 sticky top-20 space-y-4">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-violet" />
+                    <h2 className="text-sm font-sans font-semibold text-text-primary">
+                      Saved Study Plans
+                    </h2>
+                  </div>
+                  <span className="text-xs font-mono text-text-tertiary bg-surface-inset px-2 py-0.5 rounded border border-border-subtle">
+                    {savedPlans.length} {savedPlans.length === 1 ? 'Plan' : 'Plans'}
+                  </span>
+                </div>
 
-              <form onSubmit={handleGenerate} className="space-y-4">
-                {inputMode === 'text' ? (
+                {/* Primary Action: Generate New Plan */}
+                <button
+                  type="button"
+                  id="btn-generate-new-plan"
+                  onClick={() => {
+                    setIsCreating(true);
+                    setError(null);
+                  }}
+                  className="w-full bg-violet text-text-on-accent hover:brightness-110 font-sans font-medium text-sm py-2.5 rounded-md transition-all shadow-sm flex justify-center items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Generate New Plan</span>
+                </button>
+
+                {/* Saved Plans List */}
+                <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                  {savedPlans.length === 0 ? (
+                    <div className="text-center py-8 px-4 border border-dashed border-border-subtle rounded-md bg-surface-inset/50">
+                      <p className="text-xs text-text-secondary font-medium">No study plans saved yet</p>
+                      <p className="text-[11px] text-text-tertiary mt-1">Create your first AI-generated schedule above.</p>
+                    </div>
+                  ) : (
+                    savedPlans.map((p, index) => {
+                      const isSelected = activePlan?._id ? activePlan._id === p._id : activePlan === p;
+                      const isEditing = editingPlanId === p._id;
+                      const createdDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      }) : 'Recent';
+                      const planDaysCount = Array.isArray(p.plan) ? p.plan.length : (Array.isArray(p.studyPlan) ? p.studyPlan.length : 0);
+
+                      return (
+                        <div
+                          key={p._id || index}
+                          role="button"
+                          tabIndex={0}
+                          id={`plan-card-${index}`}
+                          onClick={() => {
+                            if (!isEditing) {
+                              setActivePlan(p);
+                            }
+                          }}
+                          className={`w-full text-left p-3.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                            isSelected
+                              ? 'bg-violet/10 border-violet text-text-primary shadow-sm ring-1 ring-violet/40'
+                              : 'bg-surface-inset border-border-subtle text-text-secondary hover:border-violet/40 hover:bg-surface-inset/80 hover:text-text-primary'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  id={`plan-rename-input-${index}`}
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleRename(p._id, e);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      setEditingPlanId(null);
+                                    }
+                                  }}
+                                  className="bg-surface border border-violet text-text-primary text-xs font-sans font-semibold rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet w-full"
+                                />
+                              ) : (
+                                <span 
+                                  id={`plan-title-${index}`}
+                                  className={`text-xs font-sans font-semibold truncate ${isSelected ? 'text-violet' : 'text-text-primary'}`}
+                                >
+                                  {p.subject || 'Study Plan'}
+                                </span>
+                              )}
+
+                              {isEditing ? (
+                                <button
+                                  type="button"
+                                  id={`plan-save-btn-${index}`}
+                                  onClick={(e) => handleRename(p._id, e)}
+                                  className="p-1 rounded hover:bg-violet/20 text-violet cursor-pointer transition-colors shrink-0"
+                                  title="Save Plan Title"
+                                >
+                                  <Check className="w-3.5 h-3.5 text-violet" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  id={`plan-edit-btn-${index}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPlanId(p._id);
+                                    setEditTitle(p.subject || '');
+                                  }}
+                                  className="p-1 rounded hover:bg-surface-raised text-text-tertiary hover:text-violet cursor-pointer transition-colors shrink-0"
+                                  title="Rename Plan"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {isSelected && (
+                              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 bg-violet/20 text-violet rounded border border-violet/30 font-bold shrink-0 ml-1">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-text-tertiary font-sans">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-text-tertiary" />
+                              {createdDate}
+                            </span>
+                            {planDaysCount > 0 && (
+                              <span>{planDaysCount} Days</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* CREATE NEW PLAN FORM VIEW */
+              <div className="bg-surface border border-border-subtle rounded-lg p-6 sticky top-20">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-violet" />
+                    <h2 className="text-sm font-sans font-semibold text-text-primary">
+                      Generate Study Plan
+                    </h2>
+                  </div>
+                  {savedPlans.length > 0 && (
+                    <button
+                      type="button"
+                      id="btn-cancel-create-plan"
+                      onClick={() => {
+                        setIsCreating(false);
+                        setError(null);
+                      }}
+                      className="text-xs font-sans text-text-tertiary hover:text-text-primary px-2 py-1 rounded border border-border-subtle hover:border-border-strong transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                
+                {/* Tabs: Plain text with thin underline for active state */}
+                <div className="flex border-b border-border-subtle mb-5 gap-6">
+                  <button
+                    type="button"
+                    onClick={() => { setInputMode('text'); setError(null); }}
+                    className={`pb-2 text-sm font-sans tracking-normal transition-all cursor-pointer ${
+                      inputMode === 'text'
+                        ? 'text-violet border-b-2 border-violet font-semibold'
+                        : 'text-text-secondary hover:text-text-primary border-b-2 border-transparent'
+                    }`}
+                  >
+                    Text Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setInputMode('image'); setError(null); }}
+                    className={`pb-2 text-sm font-sans tracking-normal transition-all cursor-pointer ${
+                      inputMode === 'image'
+                        ? 'text-violet border-b-2 border-violet font-semibold'
+                        : 'text-text-secondary hover:text-text-primary border-b-2 border-transparent'
+                    }`}
+                  >
+                    Image Mode
+                  </button>
+                </div>
+
+                <form onSubmit={handleGenerate} className="space-y-4">
+                  {inputMode === 'text' ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-sans font-medium text-text-secondary">
+                        Syllabus Topics
+                      </label>
+                      <textarea 
+                        value={syllabusText}
+                        onChange={(e) => setSyllabusText(e.target.value)}
+                        required
+                        className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-violet/50 focus:ring-1 focus:ring-violet/50 transition-all placeholder:text-text-tertiary min-h-[120px]"
+                        placeholder="e.g., Module 1: Processor Pipelining, Module 2: Cache Coherence..."
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-sans font-medium text-text-secondary">
+                        Syllabus Image
+                      </label>
+                      <div className="relative border border-dashed border-border-subtle hover:border-violet/50 bg-surface-inset rounded-md p-4 text-center cursor-pointer transition-all min-h-[120px] flex items-center justify-center">
+                        <input
+                          type="file"
+                          accept=".png, .jpg, .jpeg"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setSelectedImage(e.target.files[0]);
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          required={inputMode === 'image' && !selectedImage}
+                        />
+                        <div className="space-y-1">
+                          <Upload className="mx-auto h-6 w-6 text-text-tertiary" />
+                          <p className="text-xs font-sans text-text-secondary">
+                            {selectedImage ? selectedImage.name : 'Click or drop syllabus screenshot'}
+                          </p>
+                          <p className="text-xs font-sans text-text-tertiary">PNG, JPG, JPEG up to 10MB</p>
+                        </div>
+                      </div>
+                      {selectedImage && (
+                        <div className="mt-2 p-1.5 bg-surface-inset border border-border-subtle rounded relative">
+                          <img
+                            src={URL.createObjectURL(selectedImage)}
+                            alt="Syllabus Preview"
+                            className="max-h-32 mx-auto object-contain rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedImage(null)}
+                            className="text-xs font-sans text-danger hover:underline mt-1 cursor-pointer block mx-auto"
+                          >
+                            Remove Image
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS DATA [PASTE TOPICS]</label>
-                    <textarea 
-                      value={syllabusText}
-                      onChange={(e) => setSyllabusText(e.target.value)}
+                    <label className="text-xs font-sans font-medium text-text-secondary">
+                      Target Exam Date
+                    </label>
+                    <input 
+                      type="date" 
+                      value={examDate}
+                      onChange={(e) => setExamDate(e.target.value)}
                       required
-                      className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-neutral-700 min-h-[120px]"
-                      placeholder="e.g., Module 1: Processor Pipelining, Module 2: Cache Coherence..."
+                      className="w-full bg-surface-inset border border-border-subtle text-text-secondary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-violet/50 focus:ring-1 focus:ring-violet/50 transition-all"
                     />
                   </div>
-                ) : (
+
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">SYLLABUS IMAGE [UPLOAD SCREENSHOT]</label>
-                    <div className="relative border border-dashed border-neutral-800 hover:border-indigo-500/50 bg-[#0b0d13] p-4 text-center cursor-pointer transition-all min-h-[120px] flex items-center justify-center">
-                      <input
-                        type="file"
-                        accept=".png, .jpg, .jpeg"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            setSelectedImage(e.target.files[0]);
-                          }
+                    <label className="text-xs font-sans font-medium text-text-secondary">
+                      Daily Study Hours
+                    </label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="16"
+                      value={hoursPerDay}
+                      onChange={(e) => setHoursPerDay(Number(e.target.value))}
+                      required
+                      className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-violet/50 focus:ring-1 focus:ring-violet/50 transition-all"
+                    />
+                  </div>
+
+                  {/* Action Buttons: Cancel + Generate */}
+                  <div className="flex gap-2.5 pt-2">
+                    {savedPlans.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreating(false);
+                          setError(null);
                         }}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        required={inputMode === 'image' && !selectedImage}
-                      />
-                      <div className="space-y-1">
-                        <svg className="mx-auto h-8 w-8 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <p className="text-[10px] font-mono text-neutral-400">
-                          {selectedImage ? selectedImage.name : 'CLICK TO UPLOAD SCREENSHOT'}
-                        </p>
-                        <p className="text-[8px] font-mono text-neutral-600">PNG, JPG, JPEG UP TO 10MB</p>
-                      </div>
-                    </div>
-                    {selectedImage && (
-                      <div className="mt-2 p-1 bg-neutral-900 border border-neutral-800 relative">
-                        <img
-                          src={URL.createObjectURL(selectedImage)}
-                          alt="Syllabus Preview"
-                          className="max-h-32 mx-auto object-contain border border-neutral-800"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSelectedImage(null)}
-                          className="text-[9px] font-mono text-rose-500 hover:text-rose-400 mt-1 cursor-pointer block mx-auto uppercase tracking-wider"
-                        >
-                          [ REMOVE IMAGE ]
-                        </button>
-                      </div>
+                        className="py-2.5 px-3.5 rounded-md border border-border-subtle text-xs font-sans font-medium text-text-secondary hover:text-text-primary hover:bg-surface-inset transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
                     )}
+                    <button 
+                      type="submit" 
+                      disabled={isGenerating}
+                      className={`flex-1 bg-violet text-text-on-accent hover:brightness-110 font-sans font-medium text-sm py-2.5 rounded-md transition-all shadow-sm flex justify-center items-center gap-2 cursor-pointer ${
+                        isGenerating ? 'opacity-80 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-text-on-accent border-t-transparent rounded-full animate-spin" />
+                          <span>Generating Plan...</span>
+                        </>
+                      ) : (
+                        <span>Generate Study Plan</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {error && (
+                  <div className="mt-4 p-3 bg-danger/10 border border-danger/20 rounded text-danger text-xs font-sans flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
                   </div>
                 )}
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">TARGET [EXAM_DATE]</label>
-                  <input 
-                    type="date" 
-                    value={examDate}
-                    onChange={(e) => setExamDate(e.target.value)}
-                    required
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-400 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">CONSTRAINT [HOURS/DAY]</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    max="16"
-                    value={hoursPerDay}
-                    onChange={(e) => setHoursPerDay(Number(e.target.value))}
-                    required
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2.5 font-mono text-xs focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
-                  />
-                </div>
-
-                <button 
-                  type="submit" 
-                  disabled={isGenerating}
-                  className={`w-full border font-mono font-bold tracking-wider text-xs py-3 mt-4 transition-all flex justify-center items-center gap-2 cursor-pointer ${
-                    isGenerating 
-                      ? 'bg-indigo-500/20 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.4)] text-indigo-300' 
-                      : 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 hover:bg-indigo-500/20 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)]'
-                  }`}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="h-3.5 w-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                      [GENERATING...]
-                    </>
-                  ) : (
-                    '[INITIALIZE AI GENERATION]'
-                  )}
-                </button>
-              </form>
-
-              {error && (
-                <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-mono">
-                  [ERROR]: {error}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Section B: Output Matrix */}
           <div className="lg:col-span-8">
-            <div className="bg-neutral-900/20 border border-neutral-800/60 p-6 min-h-[500px]">
-              <div className="flex justify-between items-center mb-6 border-b border-neutral-800/40 pb-4">
-                <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400">
-                  <span className="text-indigo-500 mr-2">_</span>NEURAL_OUTPUT_MATRIX
-                </h2>
-                {isGenerating && <div className="text-xs font-mono text-indigo-500 animate-pulse tracking-widest">AWAITING_PAYLOAD...</div>}
+            <div className="bg-surface border border-border-subtle rounded-lg p-6 min-h-[500px]">
+              <div className="flex justify-between items-center mb-6 border-b border-border-subtle pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-violet" />
+                  <h2 className="text-sm font-sans font-semibold text-text-primary">
+                    {activePlan?.subject ? `${activePlan.subject}` : 'Your Study Plan'}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  {activePlan?.createdAt && (
+                    <span className="text-xs font-sans text-text-tertiary hidden sm:inline">
+                      Created {new Date(activePlan.createdAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  {isGenerating && <div className="text-xs font-sans text-violet animate-pulse font-medium">Generating...</div>}
+                </div>
               </div>
 
-              {plan.length === 0 && !isGenerating ? (
-                <div className="flex flex-col items-center justify-center py-24 border border-dashed border-neutral-800 bg-neutral-900/10 h-full">
-                  <svg className="w-12 h-12 text-neutral-800 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                  </svg>
-                  <p className="text-neutral-500 font-mono text-xs uppercase tracking-widest text-center max-w-xs">STANDBY MODE ACTIVE<br/><span className="text-[9px] mt-2 block opacity-70">Awaiting parameter initialization</span></p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {plan.map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="bg-[#111] border-l-2 border-l-indigo-500 border-t border-b border-r border-neutral-800/80 p-5 hover:border-r-indigo-500/30 hover:border-t-indigo-500/30 hover:border-b-indigo-500/30 transition-all group relative overflow-hidden flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
-                    >
-                      <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                      
-                      <div className="relative z-10 flex-grow w-full">
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-mono font-bold tracking-widest">
-                            DAY {item.day}
-                          </span>
-                          <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-widest">
-                            // {item.duration || item.studyTime || hoursPerDay} HOURS
-                          </span>
+              {(() => {
+                const currentPlanDays = activePlan ? (Array.isArray(activePlan.plan) ? activePlan.plan : (Array.isArray(activePlan.studyPlan) ? activePlan.studyPlan : [])) : [];
+
+                if (currentPlanDays.length === 0 && !isGenerating) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-24 border border-dashed border-border-subtle bg-surface-inset/50 rounded-lg h-full">
+                      <Sparkles className="w-10 h-10 text-text-tertiary mb-3 stroke-[1.5]" />
+                      <p className="text-text-secondary font-sans text-sm font-medium text-center max-w-sm">
+                        {isCreating ? 'Generate New Study Plan' : 'No Study Plan Selected'}
+                        <span className="text-xs mt-1 block text-text-tertiary font-normal">
+                          {isCreating
+                            ? 'Fill out the form on the left to generate a new matrix.'
+                            : 'Select a saved study plan from the library or create a new one.'}
+                        </span>
+                      </p>
+                      {!isCreating && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCreating(true)}
+                          className="mt-4 px-4 py-2 bg-violet text-text-on-accent text-xs font-sans font-medium rounded-md hover:brightness-110 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Create New Plan</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {currentPlanDays.map((item, idx) => (
+                      <div 
+                        key={idx}
+                        className="bg-surface-inset border-l-2 border-l-violet border-t border-b border-r border-border-subtle rounded-r-lg p-5 hover:border-r-violet/30 hover:border-t-violet/30 hover:border-b-violet/30 transition-all group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                      >
+                        <div className="flex-grow w-full min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2.5">
+                            <span className="bg-violet/10 text-violet border border-violet/30 px-2 py-0.5 text-xs font-sans font-semibold rounded-sm">
+                              Day {item.day}
+                            </span>
+                            <span className="text-xs text-text-tertiary font-sans">
+                              {item.duration || item.studyTime || activePlan?.dailyHours || hoursPerDay} Hours Allocated
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2 mb-2">
+                            {item.topics && (
+                              <div>
+                                <h4 className="text-xs font-sans text-violet font-medium mb-0.5">Topics</h4>
+                                <p className="text-xs font-sans text-text-primary font-medium">{item.topics}</p>
+                              </div>
+                            )}
+                            {item.practiceTasks && (
+                              <div>
+                                <h4 className="text-xs font-sans text-text-tertiary font-medium mb-0.5">Practice</h4>
+                                <p className="text-xs font-sans text-text-secondary">{item.practiceTasks}</p>
+                              </div>
+                            )}
+                            {item.revisionTasks && (
+                              <div>
+                                <h4 className="text-xs font-sans text-text-tertiary font-medium mb-0.5">Revision</h4>
+                                <p className="text-xs font-sans text-text-secondary">{item.revisionTasks}</p>
+                              </div>
+                            )}
+                            {/* Fallback rendering */}
+                            {(!item.topics && !item.practiceTasks && !item.revisionTasks && item.topic) && (
+                              <h3 className="text-xs font-sans font-semibold text-text-primary">{item.topic}</h3>
+                            )}
+                            {(!item.topics && !item.practiceTasks && !item.revisionTasks && (item.description || item.Description)) && (
+                              <p className="text-xs font-sans text-text-secondary mt-1">{item.description || item.Description}</p>
+                            )}
+                          </div>
                         </div>
                         
-                        <div className="space-y-2 mb-3">
-                           {item.topics && (
-                              <div>
-                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Topics</h4>
-                                <p className="text-xs font-bold text-neutral-200">{item.topics}</p>
-                              </div>
-                           )}
-                           {item.practiceTasks && (
-                              <div>
-                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Practice</h4>
-                                <p className="text-xs text-neutral-400">{item.practiceTasks}</p>
-                              </div>
-                           )}
-                           {item.revisionTasks && (
-                              <div>
-                                <h4 className="text-[9px] font-mono text-indigo-500 uppercase tracking-widest mb-0.5">Revision</h4>
-                                <p className="text-xs text-neutral-400">{item.revisionTasks}</p>
-                              </div>
-                           )}
-                           {/* Fallback rendering if AI output varies slightly */}
-                           {(!item.topics && !item.practiceTasks && !item.revisionTasks && item.topic) && (
-                              <h3 className="text-sm font-bold text-neutral-200 tracking-wide">{item.topic}</h3>
-                           )}
-                           {(!item.topics && !item.practiceTasks && !item.revisionTasks && (item.description || item.Description)) && (
-                              <p className="text-xs text-neutral-400 mt-1">{item.description || item.Description}</p>
-                           )}
+                        <div className="shrink-0 text-right w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+                          {/* Launch Focus Session Button */}
+                          <button
+                            type="button"
+                            id={`focus-btn-day-${item.day}`}
+                            onClick={() => {
+                              const triggerFocus = openFocusModal || openFocusLauncher;
+                              if (triggerFocus) {
+                                const dayTopic = Array.isArray(item.topics) ? item.topics.join(', ') : (item.topic || `Day ${item.day} Study`);
+                                const daySubject = activePlan?.subject || ((syllabusText && syllabusText.trim().length > 0) ? syllabusText.split('\n')[0] : 'Study Plan');
+                                const dayHours = Number(item.duration) || Number(item.studyTime) || Number(activePlan?.dailyHours) || Number(hoursPerDay) || 1;
+                                triggerFocus({
+                                  subject: daySubject,
+                                  topic: dayTopic,
+                                  duration: dayHours * 60,
+                                  plannedDuration: dayHours * 60,
+                                  goal: item.practiceTasks ? `Practice: ${item.practiceTasks}` : (item.revisionTasks ? `Revision: ${item.revisionTasks}` : `Complete Day ${item.day} study goals`)
+                                });
+                              }
+                            }}
+                            className="w-full sm:w-auto text-xs font-sans font-medium rounded-md px-3 py-1.5 transition-all text-cyan border border-cyan/30 hover:border-cyan hover:bg-cyan-dim cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                            title="Launch Focus Session for this study day"
+                          >
+                            <Target className="w-3.5 h-3.5 text-cyan" />
+                            <span>Focus</span>
+                          </button>
+
+                          <button 
+                            onClick={() => handleAppendTask(item, idx)}
+                            disabled={appendedTasks.has(idx)}
+                            className={`w-full sm:w-auto text-xs font-sans font-medium rounded-md px-3 py-1.5 transition-all ${
+                              appendedTasks.has(idx)
+                                ? 'text-success border border-success/30 bg-success/10 cursor-not-allowed'
+                                : 'text-text-secondary border border-border-subtle hover:text-violet hover:border-violet/40 hover:bg-violet-dim cursor-pointer'
+                            }`}
+                          >
+                            {appendedTasks.has(idx) ? 'Added to Tasks' : '+ Add to Tasks'}
+                          </button>
+
+                          <button
+                            onClick={() => handleGenerateQuiz(item)}
+                            disabled={generatingQuizDay === item.day}
+                            className={`w-full sm:w-auto text-xs font-sans font-medium rounded-md px-3 py-1.5 transition-all cursor-pointer ${
+                              generatingQuizDay === item.day
+                                ? 'text-violet border border-violet bg-violet/10'
+                                : 'text-text-secondary border border-border-subtle hover:text-violet hover:border-violet/40 hover:bg-violet-dim'
+                            }`}
+                          >
+                            {generatingQuizDay === item.day ? 'Generating...' : 'Take Quiz'}
+                          </button>
                         </div>
                       </div>
-                      
-                      <div className="relative z-10 shrink-0 text-right w-full sm:w-auto flex flex-col gap-2">
-                        <button 
-                          onClick={() => handleAppendTask(item, idx)}
-                          disabled={appendedTasks.has(idx)}
-                          className={`w-full sm:w-auto text-[10px] font-mono border px-3 py-1.5 transition-all ${
-                            appendedTasks.has(idx)
-                              ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 cursor-not-allowed'
-                              : 'text-neutral-500 border-neutral-700 hover:text-indigo-400 hover:border-indigo-500/30 cursor-pointer'
-                          }`}
-                        >
-                          {appendedTasks.has(idx) ? '[ APPENDED ]' : '[ + APPEND TO TASKS ]'}
-                        </button>
+                    ))}
 
+                    {currentPlanDays.length > 0 && (
+                      <div className="pt-8 border-t border-border-subtle text-center">
                         <button
-                          onClick={() => handleGenerateQuiz(item)}
-                          disabled={generatingQuizDay === item.day}
-                          className={`w-full sm:w-auto text-[10px] font-mono border px-3 py-1.5 transition-all cursor-pointer ${
-                            generatingQuizDay === item.day
-                              ? 'text-indigo-400 border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.2)] bg-indigo-500/10'
-                              : 'text-neutral-500 border-neutral-700 hover:text-indigo-400 hover:border-indigo-500/30 bg-indigo-500/5'
+                          onClick={() => setShowMockExamConfig(true)}
+                          disabled={generatingMockExam}
+                          className={`px-6 py-2.5 rounded-md bg-violet text-text-on-accent hover:brightness-110 font-sans font-medium text-sm transition-all shadow-sm cursor-pointer inline-flex items-center gap-2 ${
+                            generatingMockExam ? 'opacity-80 cursor-not-allowed' : ''
                           }`}
                         >
-                          {generatingQuizDay === item.day ? '[ GENERATING... ]' : '[ GENERATE QUIZ ]'}
+                          {generatingMockExam ? (
+                            <>
+                              <div className="h-4 w-4 border-2 border-text-on-accent border-t-transparent rounded-full animate-spin" />
+                              <span>Preparing Exam...</span>
+                            </>
+                          ) : (
+                            <span>Take Mock Exam</span>
+                          )}
                         </button>
+                        <p className="text-xs font-sans text-text-tertiary mt-2">
+                          Practice with a timed mock exam based on your syllabus.
+                        </p>
                       </div>
-                    </div>
-                  ))}
-
-                  {plan && plan.length > 0 && (
-                  <div className="pt-8 border-t border-neutral-800/40 text-center">
-                    <button
-                      onClick={() => setShowMockExamConfig(true)}
-                      disabled={generatingMockExam}
-                      className={`px-8 py-4 font-mono font-bold tracking-widest text-sm border transition-all cursor-pointer inline-flex items-center gap-3 ${
-                        generatingMockExam
-                          ? 'bg-rose-500/10 border-rose-500/50 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
-                          : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-500/5 hover:shadow-[0_0_20px_rgba(244,63,94,0.15)]'
-                      }`}
-                    >
-                      {generatingMockExam ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                          [ INITIALIZING EXAM SEQUENCE... ]
-                        </>
-                      ) : (
-                        '[ INITIATE FINAL MOCK EXAM ]'
-                      )}
-                    </button>
-                    <p className="text-[10px] font-mono text-neutral-600 mt-3 uppercase tracking-widest">
-                      Spawns a full-length, timer-based rigorous evaluation
-                    </p>
+                    )}
                   </div>
-                  )}
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
 
@@ -496,16 +866,22 @@ const AIPlanner = () => {
 
       {/* Mock Exam Configuration Modal */}
       {showMockExamConfig && (
-        <div className="fixed inset-0 z-50 bg-[#07090e]/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-neutral-950 border border-rose-500/30 p-8 max-w-md w-full shadow-[0_0_30px_rgba(244,63,94,0.1)] font-sans relative">
-            <div className="absolute top-0 left-0 w-full h-[1px] bg-rose-500/50 shadow-[0_0_10px_#f43f5e] animate-pulse" />
-            <h2 className="text-lg font-mono font-bold text-rose-400 mb-6 uppercase tracking-widest border-b border-neutral-800 pb-4">
-              [ EXAM CONFIGURATION ]
-            </h2>
+        <div className="fixed inset-0 z-50 bg-base/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-strong rounded-lg p-6 max-w-md w-full font-sans relative">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-5">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-violet" />
+                <h2 className="text-sm font-sans font-semibold text-text-primary">
+                  Mock Exam Settings
+                </h2>
+              </div>
+            </div>
 
-            <form onSubmit={handleGenerateMockExam} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">DURATION [MINUTES]</label>
+            <form onSubmit={handleGenerateMockExam} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-medium text-text-secondary">
+                  Duration (Minutes)
+                </label>
                 <input
                   type="number"
                   min="5"
@@ -513,22 +889,24 @@ const AIPlanner = () => {
                   required
                   value={examConfig.durationMinutes}
                   onChange={e => setExamConfig({ ...examConfig, durationMinutes: Number(e.target.value) })}
-                  className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50"
+                  className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-violet/50 focus:ring-1 focus:ring-violet/50"
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">QUESTION TYPE</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-medium text-text-secondary">
+                  Question Type
+                </label>
                 <div className="flex gap-2">
                   {['objective', 'subjective', 'mixed'].map(type => (
                     <button
                       key={type}
                       type="button"
                       onClick={() => setExamConfig({ ...examConfig, questionType: type })}
-                      className={`flex-1 py-2 font-mono text-[10px] tracking-widest uppercase border transition-all ${
+                      className={`flex-1 py-1.5 font-sans text-xs capitalize rounded-md border transition-all cursor-pointer ${
                         examConfig.questionType === type
-                          ? 'bg-rose-500/10 border-rose-500 text-rose-300'
-                          : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
+                          ? 'bg-violet/15 border-violet text-violet font-semibold'
+                          : 'bg-surface-inset border-border-subtle text-text-secondary hover:text-text-primary'
                       }`}
                     >
                       {type}
@@ -537,8 +915,10 @@ const AIPlanner = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">QUESTION COUNT [MAX: 15]</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-sans font-medium text-text-secondary">
+                  Question Count (Max 15)
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -546,23 +926,23 @@ const AIPlanner = () => {
                   required
                   value={examConfig.questionCount}
                   onChange={e => setExamConfig({ ...examConfig, questionCount: Number(e.target.value) })}
-                  className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/50"
+                  className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-violet/50 focus:ring-1 focus:ring-violet/50"
                 />
               </div>
 
-              <div className="flex gap-4 pt-4 border-t border-neutral-800">
+              <div className="flex gap-3 pt-4 border-t border-border-subtle">
                 <button
                   type="button"
                   onClick={() => setShowMockExamConfig(false)}
-                  className="flex-1 py-2 border border-neutral-800 text-neutral-500 hover:text-neutral-300 font-mono text-xs tracking-wider transition-all"
+                  className="flex-1 py-2 border border-border-subtle rounded-md text-text-secondary hover:text-text-primary font-sans text-xs font-medium transition-all cursor-pointer"
                 >
-                  [ ABORT ]
+                  Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-rose-500/10 border border-rose-500/60 text-rose-400 hover:bg-rose-500/20 font-mono text-xs tracking-wider transition-all"
+                  className="flex-1 py-2 bg-violet text-text-on-accent hover:brightness-110 font-sans font-medium text-xs rounded-md transition-all shadow-sm cursor-pointer"
                 >
-                  [ LAUNCH ]
+                  Start Exam
                 </button>
               </div>
             </form>

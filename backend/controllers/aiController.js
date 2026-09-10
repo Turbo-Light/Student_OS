@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import multer from 'multer';
+import StudyPlan from '../models/StudyPlan.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -65,7 +66,22 @@ Generate the full study plan now:
       return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
     }
 
-    res.status(200).json({ studyPlan: planData });
+    let createdPlan = null;
+    if (req.user) {
+      try {
+        createdPlan = await StudyPlan.create({
+          user: req.user._id || req.user.id,
+          subject,
+          examDate: isNaN(new Date(examDate).getTime()) ? undefined : new Date(examDate),
+          dailyHours: Number(studyHoursPerDay) || 2,
+          plan: planData,
+        });
+      } catch (dbErr) {
+        console.error('[AI] Error saving study plan to DB:', dbErr.message);
+      }
+    }
+
+    res.status(200).json({ studyPlan: planData, planDoc: createdPlan });
   } catch (error) {
     console.error('[AI] generateStudyPlan error:', error.message);
 
@@ -119,6 +135,7 @@ const generatePlanText = async (req, res) => {
         days = 7;
       }
     }
+    if (days > 30) days = 14;
 
     const prompt = `
 You are an expert tutor. Create a structured study plan for ${subject} based on the provided syllabus text.
@@ -128,30 +145,76 @@ IMPORTANT CONSTRAINT: The exam is in EXACTLY ${days} days. You MUST generate exa
 Syllabus Text:
 ${syllabusText}
 
+Analyze the provided syllabus topics and generate a concise 2-4 word title for the subject. You MUST return a JSON object with two keys: \`title\` (the generated string) and \`plan\` (the array of daily study blocks).
+
 CRITICAL OUTPUT REQUIREMENT:
-Return a JSON array where each element is an object with exactly these five keys:
-  - "day": a number representing the day (e.g., 1, 2, etc.)
-  - "topics": an array of strings representing specific topics
-  - "studyTime": a string representing duration (e.g., "2 hours")
-  - "revisionTasks": a string describing revision activities
-  - "practiceTasks": a string describing practice activities
+Return a JSON object with exactly these two keys:
+  - "title": a concise 2-4 word title for the subject based on the syllabus
+  - "plan": a JSON array where each element is an object with exactly these five keys:
+    * "day": a number representing the day (e.g., 1, 2, etc.)
+    * "topics": an array of strings representing specific topics
+    * "studyTime": a string representing duration (e.g., "2 hours")
+    * "revisionTasks": a string describing revision activities
+    * "practiceTasks": a string describing practice activities
 
 Example of the required format:
-[
-  { 
-    "day": 1, 
-    "topics": ["Array Basics"], 
-    "studyTime": "2 hours", 
-    "revisionTasks": "Revise Big O", 
-    "practiceTasks": "Solve Two Sum" 
-  }
-]
+{
+  "title": "Data Structures & Algorithms",
+  "plan": [
+    { 
+      "day": 1, 
+      "topics": ["Array Basics"], 
+      "studyTime": "2 hours", 
+      "revisionTasks": "Revise Big O", 
+      "practiceTasks": "Solve Two Sum" 
+    }
+  ]
+}
 `;
 
     const result = await model.generateContent(prompt);
-    const planData = JSON.parse(result.response.text());
+    let parsed;
+    try {
+      parsed = JSON.parse(result.response.text());
+    } catch (parseErr) {
+      console.error("JSON Parse Error:", parseErr.message);
+      return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
+    }
 
-    res.status(200).json({ studyPlan: planData });
+    let planData = [];
+    let generatedTitle = null;
+
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      generatedTitle = parsed.title || null;
+      planData = parsed.plan || [];
+    } else if (Array.isArray(parsed)) {
+      planData = parsed;
+    }
+
+    const fallbackSubject = (syllabusText && syllabusText.trim().length > 0)
+      ? syllabusText.split('\n')[0].substring(0, 50)
+      : (req.body.subject || 'Study Plan');
+
+    const finalSubject = (generatedTitle && typeof generatedTitle === 'string' && generatedTitle.trim().length > 0)
+      ? generatedTitle.trim()
+      : fallbackSubject;
+
+    let createdPlan = null;
+    if (req.user) {
+      try {
+        createdPlan = await StudyPlan.create({
+          user: req.user._id || req.user.id,
+          subject: finalSubject,
+          examDate: isNaN(new Date(examDate).getTime()) ? undefined : new Date(examDate),
+          dailyHours: Number(hoursPerDay) || 2,
+          plan: planData,
+        });
+      } catch (dbErr) {
+        console.error('[AI] Error saving study plan to DB:', dbErr.message);
+      }
+    }
+
+    res.status(200).json({ studyPlan: planData, plan: planData, title: finalSubject, planDoc: createdPlan });
   } catch (error) {
     console.error(">>> TEXT PIPELINE CRASH:", error);
     return res.status(500).json({ message: "Text generation failed.", error: error.message });
@@ -200,25 +263,32 @@ You are an expert tutor. Extract the syllabus topics from the provided image and
 The student has ${hoursPerDay} hours per day to study.
 IMPORTANT CONSTRAINT: The exam is in EXACTLY ${days} days. You MUST generate exactly ${days} days of content. Do NOT generate 90 days. Stop precisely at Day ${days}.
 
+Analyze the provided syllabus topics and generate a concise 2-4 word title for the subject. You MUST return a JSON object with two keys: \`title\` (the generated string) and \`plan\` (the array of daily study blocks).
+
 CRITICAL OUTPUT REQUIREMENT:
-Return ONLY a raw JSON array. Do not include markdown formatting, backticks, or the word 'json'.
-Each element in the array must be an object with exactly these five keys:
-  - "day": a number representing the day (e.g., 1, 2, etc.)
-  - "topics": an array of strings representing specific topics
-  - "studyTime": a string representing duration (e.g., "2 hours")
-  - "revisionTasks": a string describing revision activities
-  - "practiceTasks": a string describing practice activities
+Return ONLY a raw JSON object. Do not include markdown formatting, backticks, or the word 'json'.
+Return a JSON object with exactly these two keys:
+  - "title": a concise 2-4 word title for the subject based on the syllabus
+  - "plan": a JSON array where each element is an object with exactly these five keys:
+    * "day": a number representing the day (e.g., 1, 2, etc.)
+    * "topics": an array of strings representing specific topics
+    * "studyTime": a string representing duration (e.g., "2 hours")
+    * "revisionTasks": a string describing revision activities
+    * "practiceTasks": a string describing practice activities
 
 Example of the required format:
-[
-  { 
-    "day": 1, 
-    "topics": ["Array Basics"], 
-    "studyTime": "2 hours", 
-    "revisionTasks": "Revise Big O", 
-    "practiceTasks": "Solve Two Sum" 
-  }
-]
+{
+  "title": "Computer Networks",
+  "plan": [
+    { 
+      "day": 1, 
+      "topics": ["Array Basics"], 
+      "studyTime": "2 hours", 
+      "revisionTasks": "Revise Big O", 
+      "practiceTasks": "Solve Two Sum" 
+    }
+  ]
+}
 
 IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown formatting. Ensure all brackets are closed.
 `;
@@ -227,15 +297,45 @@ IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown for
     const text = result.response.text();
     const sanitizedText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
 
-    let planData;
+    let planData = [];
+    let generatedTitle = null;
     try {
-      planData = JSON.parse(sanitizedText);
+      const parsed = JSON.parse(sanitizedText);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        generatedTitle = parsed.title || null;
+        planData = parsed.plan || [];
+      } else if (Array.isArray(parsed)) {
+        planData = parsed;
+      }
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError.message);
       return res.status(500).json({ message: "The AI generated an incomplete response. Please try generating again." });
     }
 
-    res.status(200).json({ studyPlan: planData });
+    const fallbackSubject = req.file?.originalname
+      ? req.file.originalname.split('.')[0].replace(/[-_]/g, ' ')
+      : (req.body.subject || 'Syllabus Image');
+
+    const finalSubject = (generatedTitle && typeof generatedTitle === 'string' && generatedTitle.trim().length > 0)
+      ? generatedTitle.trim()
+      : fallbackSubject;
+
+    let createdPlan = null;
+    if (req.user) {
+      try {
+        createdPlan = await StudyPlan.create({
+          user: req.user._id || req.user.id,
+          subject: finalSubject,
+          examDate: isNaN(new Date(examDate).getTime()) ? undefined : new Date(examDate),
+          dailyHours: Number(hoursPerDay) || 2,
+          plan: planData,
+        });
+      } catch (dbErr) {
+        console.error('[AI] Error saving study plan to DB:', dbErr.message);
+      }
+    }
+
+    res.status(200).json({ studyPlan: planData, plan: planData, title: finalSubject, planDoc: createdPlan });
   } catch (error) {
     console.error('[AI] generatePlanImage error:', error.message);
     res.status(500).json({
@@ -245,5 +345,90 @@ IMPORTANT: You must return ONLY valid, stringified JSON. Do not use markdown for
   }
 };
 
-export { upload, generateStudyPlan, generatePlanText, generatePlanImage };
+/**
+ * @desc    Get the most recent study plan for the authenticated user
+ * @route   GET /api/ai/plan
+ * @access  Private
+ */
+const getLatestStudyPlan = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const latestPlan = await StudyPlan.findOne({ user: userId }).sort({ createdAt: -1 });
+
+    if (!latestPlan) {
+      return res.status(200).json({ studyPlan: null, plan: null });
+    }
+
+    res.status(200).json({
+      _id: latestPlan._id,
+      studyPlan: latestPlan.plan,
+      plan: latestPlan.plan,
+      subject: latestPlan.subject,
+      examDate: latestPlan.examDate,
+      dailyHours: latestPlan.dailyHours,
+      createdAt: latestPlan.createdAt,
+    });
+  } catch (error) {
+    console.error('[AI] getLatestStudyPlan error:', error.message);
+    res.status(500).json({
+      message: 'Failed to fetch latest study plan.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Get all saved study plans for the authenticated user
+ * @route   GET /api/ai/plans
+ * @access  Private
+ */
+const getAllStudyPlans = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const plans = await StudyPlan.find({ user: userId }).sort({ createdAt: -1 });
+    res.status(200).json(plans);
+  } catch (error) {
+    console.error('[AI] getAllStudyPlans error:', error.message);
+    res.status(500).json({
+      message: 'Failed to fetch study plans.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Rename a study plan
+ * @route   PUT /api/ai/plans/:id/rename
+ * @access  Private
+ */
+const renameStudyPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'Title is required for renaming.' });
+    }
+
+    const updatedPlan = await StudyPlan.findByIdAndUpdate(
+      id,
+      { subject: title.trim() },
+      { new: true }
+    );
+
+    if (!updatedPlan) {
+      return res.status(404).json({ message: 'Study plan not found.' });
+    }
+
+    res.status(200).json(updatedPlan);
+  } catch (error) {
+    console.error('[AI] renameStudyPlan error:', error.message);
+    res.status(500).json({
+      message: 'Failed to rename study plan.',
+      error: error.message,
+    });
+  }
+};
+
+export { upload, generateStudyPlan, generatePlanText, generatePlanImage, getLatestStudyPlan, getAllStudyPlans, renameStudyPlan };
 

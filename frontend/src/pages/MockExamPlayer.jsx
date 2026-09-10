@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Clock, Check, X } from 'lucide-react';
 
 const MockExamPlayer = ({ examData, onClose }) => {
   const [userAnswers, setUserAnswers] = useState({});
@@ -23,14 +24,14 @@ const MockExamPlayer = ({ examData, onClose }) => {
 
   if (!examData || !examData.sections) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#07090e]/95 backdrop-blur-md flex items-center justify-center p-6 text-neutral-100">
-        <div className="bg-neutral-950 border border-neutral-800 p-8 max-w-md w-full text-center font-sans">
-          <p className="font-mono text-rose-500 uppercase tracking-widest text-sm mb-4">[ERROR: CORRUPT EXAM DATA]</p>
+      <div className="fixed inset-0 z-50 bg-base/90 backdrop-blur-md flex items-center justify-center p-6 text-text-primary">
+        <div className="bg-surface border border-border-subtle rounded-lg p-8 max-w-md w-full text-center font-sans">
+          <p className="text-danger text-sm font-medium mb-4">Unable to load exam data.</p>
           <button 
             onClick={onClose} 
-            className="px-4 py-2 border border-neutral-700 hover:border-neutral-500 font-mono text-xs text-neutral-400 hover:text-neutral-200 transition-all cursor-pointer"
+            className="px-4 py-2 border border-border-subtle hover:border-border-strong rounded-md text-xs text-text-secondary hover:text-text-primary transition-all cursor-pointer font-sans"
           >
-            [CLOSE TERMINAL]
+            Close
           </button>
         </div>
       </div>
@@ -52,7 +53,6 @@ const MockExamPlayer = ({ examData, onClose }) => {
   };
 
   const handleSubmit = () => {
-    // Calculate MCQ Score for results screen
     let mcqCorrect = 0;
     let mcqTotal = 0;
 
@@ -77,39 +77,38 @@ const MockExamPlayer = ({ examData, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#07090e]/95 backdrop-blur-md flex justify-center p-0 sm:p-6 overflow-y-auto">
-      {/* Decorative background grid */}
-      <div className="fixed inset-0 bg-[linear-gradient(to_right,#1f29370a_1px,transparent_1px),linear-gradient(to_bottom,#1f29370a_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none" />
-      
-      <div className="bg-neutral-950/90 border border-neutral-800/80 w-full max-w-4xl relative z-10 shadow-2xl flex flex-col font-sans h-full sm:h-auto sm:max-h-[90vh]">
+    <div className="fixed inset-0 z-50 bg-base/90 backdrop-blur-md flex justify-center p-0 sm:p-6 overflow-y-auto">
+      <div className="bg-surface border border-border-subtle rounded-lg w-full max-w-4xl relative z-10 flex flex-col font-sans h-full sm:h-auto sm:max-h-[90vh] overflow-hidden">
         
-        {/* Dynamic scan line effect */}
-        <div className="absolute top-0 left-0 w-full h-[1px] bg-cyan-500/50 shadow-[0_0_10px_#22d3ee] animate-pulse" />
-
         {/* Sticky Header */}
-        <header className="sticky top-0 z-20 flex justify-between items-center border-b border-neutral-800 p-4 sm:p-6 bg-neutral-950/95 backdrop-blur-sm">
+        <header className="sticky top-0 z-20 flex justify-between items-center border-b border-border-subtle p-4 sm:p-6 bg-surface/95 backdrop-blur-sm">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`h-1.5 w-1.5 rounded-full animate-pulse shadow-[0_0_6px] ${isSubmitted ? 'bg-indigo-400 shadow-indigo-400' : 'bg-cyan-400 shadow-cyan-400'}`} />
-              <p className={`text-[10px] uppercase tracking-[0.25em] font-mono font-bold ${isSubmitted ? 'text-indigo-400' : 'text-cyan-400'}`}>
-                {isSubmitted ? 'EVALUATION // COMPLETE' : 'EVALUATION // IN_PROGRESS'}
+              <span className={`h-2 w-2 rounded-full ${isSubmitted ? 'bg-violet' : 'bg-cyan'}`} />
+              <p className={`text-xs font-sans font-semibold uppercase tracking-wider ${isSubmitted ? 'text-violet' : 'text-cyan'}`}>
+                {isSubmitted ? 'Mock Exam Completed' : 'Mock Exam in Progress'}
               </p>
             </div>
-            <h2 className="text-sm font-mono text-neutral-300 font-bold uppercase tracking-wider truncate max-w-xs sm:max-w-md">
-              {examData.subject || 'MOCK EXAM'}
+            <h2 className="text-base font-sans font-bold text-text-primary truncate max-w-xs sm:max-w-md">
+              {examData.subject || 'Mock Exam'}
             </h2>
           </div>
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-3">
             {!isSubmitted ? (
-              <div className={`font-mono font-bold text-lg tracking-widest ${timeLeft < 300 ? 'text-rose-500 animate-pulse' : 'text-cyan-400'}`}>
-                [ TIME REMAINING // {formatTime(timeLeft)} ]
+              <div className={`font-mono font-semibold text-sm flex items-center gap-1.5 px-3 py-1.5 rounded border ${
+                timeLeft < 300 
+                  ? 'text-danger bg-danger/10 border-danger/30 animate-pulse' 
+                  : 'text-cyan bg-cyan/10 border-cyan/30'
+              }`}>
+                <Clock className="w-4 h-4" />
+                <span>Time Remaining: {formatTime(timeLeft)}</span>
               </div>
             ) : (
               <button 
                 onClick={onClose}
-                className="text-neutral-500 hover:text-neutral-200 font-mono text-xs px-3 py-1 border border-neutral-800 hover:border-neutral-700 bg-neutral-900/40 transition-all cursor-pointer"
+                className="text-text-secondary hover:text-text-primary font-sans text-xs font-medium px-3 py-1.5 border border-border-subtle hover:border-border-strong rounded-md transition-all cursor-pointer"
               >
-                [EXIT SIMULATION]
+                Exit Exam
               </button>
             )}
           </div>
@@ -119,32 +118,32 @@ const MockExamPlayer = ({ examData, onClose }) => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-8">
           {!isSubmitted ? (
             /* EXAM MODE */
-            <div className="space-y-12">
+            <div className="space-y-10">
               {examData.sections.map((section, sIdx) => (
                 <div key={sIdx} className="space-y-6">
-                  <div className="border-b border-neutral-800 pb-4">
-                    <h3 className="text-lg font-mono font-bold text-neutral-200 tracking-wider uppercase flex items-center gap-3">
-                      <span className="text-cyan-500 bg-cyan-500/10 px-2 py-1 text-xs">SECTION {sIdx + 1}</span>
-                      {section.sectionName}
+                  <div className="border-b border-border-subtle pb-3">
+                    <h3 className="text-base font-sans font-bold text-text-primary flex items-center gap-2">
+                      <span className="text-cyan bg-cyan/10 px-2 py-0.5 text-xs font-semibold rounded">Section {sIdx + 1}</span>
+                      <span>{section.sectionName}</span>
                     </h3>
-                    <p className="text-xs text-neutral-500 font-mono uppercase tracking-widest mt-2">
+                    <p className="text-xs text-text-secondary font-sans mt-1">
                       {section.instructions}
                     </p>
                   </div>
 
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     {section.questions.map((q, qIdx) => (
-                      <div key={qIdx} className="bg-[#0b0d13] border border-neutral-800/60 p-5 space-y-4">
-                        <div className="flex items-center justify-between gap-2 border-b border-neutral-800/40 pb-3">
-                          <span className="text-xs font-mono text-neutral-500 font-bold tracking-widest">
-                            Q{qIdx + 1}.
+                      <div key={qIdx} className="bg-surface-inset border border-border-subtle rounded-lg p-5 space-y-4">
+                        <div className="flex items-center justify-between gap-2 border-b border-border-subtle pb-2.5">
+                          <span className="text-xs font-sans text-text-secondary font-semibold">
+                            Question {qIdx + 1}
                           </span>
-                          <span className="bg-neutral-900 border border-neutral-800 text-neutral-400 px-2 py-0.5 text-[9px] font-mono font-bold tracking-widest uppercase">
+                          <span className="bg-surface border border-border-subtle text-text-tertiary px-2 py-0.5 text-xs font-sans font-medium rounded">
                             {q.type}
                           </span>
                         </div>
                         
-                        <p className="text-sm text-neutral-200 leading-relaxed font-sans pb-2">
+                        <p className="text-gray-100 dark:text-white text-lg font-medium leading-relaxed font-sans">
                           {q.question}
                         </p>
 
@@ -157,16 +156,16 @@ const MockExamPlayer = ({ examData, onClose }) => {
                                   <button
                                     key={oIdx}
                                     onClick={() => handleAnswerSelect(sIdx, qIdx, opt)}
-                                    className={`w-full text-left p-3 border font-mono text-xs transition-all flex items-center gap-3 cursor-pointer ${
+                                    className={`w-full text-left p-3 rounded-md border font-sans text-xs transition-all flex items-center gap-3 cursor-pointer ${
                                       isSelected
-                                        ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
-                                        : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                                        ? 'bg-cyan/15 border-cyan text-text-primary'
+                                        : 'bg-surface border-border-subtle text-text-secondary hover:border-border-strong hover:text-text-primary'
                                     }`}
                                   >
-                                    <span className={`w-4 h-4 border flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                    <span className={`w-5 h-5 rounded border flex items-center justify-center text-xs font-semibold shrink-0 ${
                                       isSelected 
-                                        ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' 
-                                        : 'border-neutral-700 text-neutral-500'
+                                        ? 'border-cyan text-cyan bg-cyan/10' 
+                                        : 'border-border-subtle text-text-tertiary'
                                     }`}>
                                       {String.fromCharCode(65 + oIdx)}
                                     </span>
@@ -179,8 +178,8 @@ const MockExamPlayer = ({ examData, onClose }) => {
                             <textarea
                               value={userAnswers[`${sIdx}-${qIdx}`] || ''}
                               onChange={(e) => handleAnswerSelect(sIdx, qIdx, e.target.value)}
-                              className="w-full bg-[#090b0f] border border-neutral-800 text-neutral-200 px-4 py-3 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-neutral-700 min-h-[140px]"
-                              placeholder={q.type === 'Coding' ? '// Write your code here...' : 'Write your detailed response...'}
+                              className="w-full bg-surface border border-border-subtle text-text-primary rounded-md px-4 py-3 font-sans text-xs focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all placeholder:text-text-tertiary min-h-[140px]"
+                              placeholder="Write your detailed response..."
                             />
                           )}
                         </div>
@@ -193,31 +192,31 @@ const MockExamPlayer = ({ examData, onClose }) => {
           ) : (
             /* RESULTS MODE */
             <div className="space-y-8">
-              <div className="bg-[#0b0d13] border border-neutral-800 p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="bg-surface-inset border border-border-subtle rounded-lg p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div>
-                  <h3 className="text-2xl font-extrabold tracking-tight text-neutral-100 mb-1">
-                    Simulation Concluded
+                  <h3 className="text-xl font-sans font-bold text-text-primary mb-1">
+                    Exam Completed
                   </h3>
-                  <p className="text-xs text-neutral-400 font-mono uppercase tracking-wider leading-relaxed">
+                  <p className="text-xs text-text-secondary font-sans leading-relaxed">
                     Time Elapsed: {formatTime((examData.durationMinutes * 60) - timeLeft)} <br/>
-                    Subjective responses logged for manual review.
+                    Subjective responses logged for review.
                   </p>
                 </div>
-                <div className="shrink-0 text-center sm:text-right border-l sm:border-l border-neutral-800 pl-0 sm:pl-8 w-full sm:w-auto mt-4 sm:mt-0 pt-4 sm:pt-0">
-                  <span className="text-[10px] font-mono text-neutral-500 block uppercase tracking-wider mb-1">OBJECTIVE SCORE MATRIX</span>
-                  <span className="text-4xl font-black font-mono text-cyan-400 tracking-wider shadow-cyan-400/20 drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-                    {score.correct} <span className="text-neutral-600">/</span> {score.total}
+                <div className="shrink-0 text-center sm:text-right border-l sm:border-l border-border-subtle pl-0 sm:pl-8 w-full sm:w-auto mt-4 sm:mt-0 pt-4 sm:pt-0">
+                  <span className="text-xs font-sans text-text-secondary block mb-1">Exam Score</span>
+                  <span className="text-3xl font-bold font-mono text-cyan">
+                    {score.correct} <span className="text-text-tertiary">/</span> {score.total}
                   </span>
-                  <span className="text-[10px] text-neutral-400 font-mono block mt-1">
-                    ({score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0}% EFFICIENCY)
+                  <span className="text-xs text-text-secondary font-sans block mt-1">
+                    ({score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0}% Efficiency)
                   </span>
                 </div>
               </div>
 
               {examData.sections.map((section, sIdx) => (
                 <div key={sIdx} className="space-y-4">
-                  <h4 className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest border-b border-neutral-800 pb-2">
-                    SECTION {sIdx + 1} // {section.sectionName}
+                  <h4 className="text-xs font-sans font-semibold text-text-secondary border-b border-border-subtle pb-2">
+                    Section {sIdx + 1}: {section.sectionName}
                   </h4>
                   
                   <div className="space-y-4">
@@ -231,47 +230,43 @@ const MockExamPlayer = ({ examData, onClose }) => {
                       );
 
                       return (
-                        <div key={qIdx} className="border border-neutral-800 bg-[#090b0f] p-5 space-y-3 relative overflow-hidden">
-                          {isMcq && (
-                            <div className={`absolute top-0 left-0 w-1 h-full ${isCorrect ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                          )}
-
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-[10px] font-mono text-neutral-500">Q{qIdx + 1}</span>
-                            <span className="bg-neutral-900 border border-neutral-800 text-neutral-400 px-1.5 py-0.5 text-[8px] font-mono font-bold tracking-widest uppercase">
+                        <div key={qIdx} className="border border-border-subtle bg-surface-inset rounded-lg p-5 space-y-3 relative overflow-hidden">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-sans text-text-secondary font-medium">Question {qIdx + 1}</span>
+                            <span className="bg-surface border border-border-subtle text-text-tertiary px-1.5 py-0.5 text-xs font-sans font-medium rounded">
                               {q.type}
                             </span>
                             {isMcq && (
-                              <span className={`text-[8px] font-mono font-bold tracking-widest px-1.5 py-0.5 border ${
+                              <span className={`text-xs font-sans font-semibold px-2 py-0.5 rounded border ${
                                 isCorrect 
-                                  ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' 
-                                  : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
+                                  ? 'text-success border-success/30 bg-success/10' 
+                                  : 'text-danger border-danger/30 bg-danger/10'
                               }`}>
-                                {isCorrect ? 'PASSED' : 'FAILED'}
+                                {isCorrect ? 'Correct' : 'Incorrect'}
                               </span>
                             )}
                           </div>
 
-                          <p className="text-xs text-neutral-300 font-medium leading-relaxed font-sans">{q.question}</p>
+                          <p className="text-xs text-text-primary font-medium leading-relaxed font-sans">{q.question}</p>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1">
-                            <div className="bg-neutral-950 p-2 border border-neutral-900">
-                              <span className="text-neutral-600 block text-[9px] uppercase tracking-wider mb-0.5">YOUR RESPONSE</span>
-                              <span className={`${isMcq ? (isCorrect ? 'text-emerald-400' : 'text-rose-400') : 'text-neutral-400'}`}>
-                                {uAnswer || '[ NO RESPONSE PROVIDED ]'}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans pt-1">
+                            <div className="bg-surface p-2.5 rounded border border-border-subtle">
+                              <span className="text-text-tertiary block text-xs mb-0.5">Your Answer</span>
+                              <span className={`${isMcq ? (isCorrect ? 'text-success font-medium' : 'text-danger font-medium') : 'text-text-secondary'}`}>
+                                {uAnswer || 'No response provided'}
                               </span>
                             </div>
                             {isMcq && (
-                              <div className="bg-neutral-950 p-2 border border-neutral-900">
-                                <span className="text-neutral-600 block text-[9px] uppercase tracking-wider mb-0.5">CORRECT TARGET</span>
-                                <span className="text-emerald-400">{cAnswer}</span>
+                              <div className="bg-surface p-2.5 rounded border border-border-subtle">
+                                <span className="text-text-tertiary block text-xs mb-0.5">Correct Answer</span>
+                                <span className="text-success font-medium">{cAnswer}</span>
                               </div>
                             )}
                           </div>
 
                           {q.explanation && (
-                            <div className="bg-cyan-950/10 border-l border-cyan-500/30 p-3 mt-2 text-[10px] leading-relaxed text-neutral-400 font-mono">
-                              <span className="text-cyan-400 font-bold block mb-1">AI ANALYSIS //</span>
+                            <div className="bg-cyan/5 border-l-2 border-l-cyan p-3 mt-2 text-xs leading-relaxed text-text-secondary font-sans rounded-r">
+                              <span className="text-cyan font-semibold block mb-1">Explanation</span>
                               {q.explanation}
                             </div>
                           )}
@@ -287,13 +282,13 @@ const MockExamPlayer = ({ examData, onClose }) => {
 
         {/* Footer Actions (Exam Mode) */}
         {!isSubmitted && (
-          <div className="border-t border-neutral-800 p-4 sm:p-6 bg-neutral-950 text-right shrink-0">
+          <div className="border-t border-border-subtle p-4 sm:p-6 bg-surface text-right shrink-0">
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-8 py-3 bg-cyan-500/10 border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] font-mono text-xs font-bold tracking-wider transition-all cursor-pointer"
+              className="px-6 py-2.5 bg-cyan text-text-on-accent hover:brightness-110 font-sans font-medium text-sm rounded-md transition-all shadow-sm cursor-pointer"
             >
-              [ SUBMIT EXAM & EVALUATE ]
+              Submit Exam
             </button>
           </div>
         )}

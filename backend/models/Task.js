@@ -42,6 +42,14 @@ const taskSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    isAiGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    source: {
+      type: String,
+      default: 'user',
+    },
   },
   {
     timestamps: true,

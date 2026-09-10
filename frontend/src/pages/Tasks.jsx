@@ -1,9 +1,15 @@
 import React, { useContext, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TaskContext } from '../context/TaskContext';
+import { FocusContext } from '../context/FocusContext';
+import { Clock, Trash2, Check, Plus, X, Target } from 'lucide-react';
 
 const Tasks = () => {
+  const location = useLocation();
   const { tasks, isLoading, fetchTasks, addTask, updateTask, deleteTask } = useContext(TaskContext);
+  const { openFocusLauncher } = useContext(FocusContext) || {};
   
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -16,6 +22,12 @@ const Tasks = () => {
     fetchTasks();
   }, []);
 
+  useEffect(() => {
+    if (location.search.includes('new=true')) {
+      setShowForm(true);
+    }
+  }, [location.search]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -26,12 +38,27 @@ const Tasks = () => {
     setFormData({ title: '', description: '', priority: 'Medium', deadline: '', subject: '' });
   };
 
-  const getPriorityColor = (priority) => {
-    switch(priority) {
-      case 'High': return 'bg-rose-500 shadow-[0_0_8px_#f43f5e]';
-      case 'Medium': return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]';
-      case 'Low': return 'bg-emerald-500 shadow-[0_0_8px_#10b981]';
-      default: return 'bg-neutral-500';
+  const renderPriorityBadge = (priority) => {
+    switch (priority) {
+      case 'High':
+        return (
+          <span className="px-2 py-0.5 rounded-sm font-sans text-xs font-semibold bg-danger/15 text-danger border border-danger/30">
+            High
+          </span>
+        );
+      case 'Medium':
+        return (
+          <span className="px-2 py-0.5 rounded-sm font-sans text-xs font-semibold bg-warning/15 text-warning border border-warning/30">
+            Medium
+          </span>
+        );
+      case 'Low':
+      default:
+        return (
+          <span className="px-2 py-0.5 rounded-sm font-sans text-xs font-medium text-text-tertiary border border-border-subtle bg-transparent">
+            Low
+          </span>
+        );
     }
   };
 
@@ -56,211 +83,294 @@ const Tasks = () => {
 
   const completedTasks = tasks.filter(task => task.status === 'Completed');
 
-  const renderTaskCard = (task) => (
-    <div 
-      key={task._id} 
-      className={`group flex items-start gap-4 p-4 border transition-all duration-300 ${
-        task.status === 'Completed' 
-          ? 'bg-neutral-950/40 border-neutral-800/40 opacity-60' 
-          : 'bg-neutral-950/80 border-neutral-700/50 hover:border-cyan-500/30 hover:bg-[#0b0d13]'
-      }`}
-    >
-      {/* Checkbox Toggle */}
-      <button 
-        onClick={() => updateTask(task._id, { status: task.status === 'Completed' ? 'Pending' : 'Completed' })}
-        className={`mt-1 shrink-0 w-5 h-5 border flex items-center justify-center transition-colors cursor-pointer ${
-          task.status === 'Completed' 
-            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
-            : 'bg-neutral-900 border-neutral-600 hover:border-cyan-500 text-transparent hover:text-cyan-500/30'
+  const renderTaskCard = (task) => {
+    const isCompleted = task.status === 'Completed';
+    const isOverdue = !isCompleted && task.deadline && (new Date(task.deadline).setHours(0, 0, 0, 0) < today.getTime());
+    const formattedDate = task.deadline 
+      ? new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'No due date';
+
+    return (
+      <div 
+        key={task._id} 
+        className={`group flex items-start gap-4 p-4 rounded-lg border transition-all duration-200 ${
+          isCompleted 
+            ? 'bg-surface/40 border-border-subtle opacity-60' 
+            : 'bg-surface border-border-subtle hover:border-border-strong hover:bg-surface-raised'
         }`}
       >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-        </svg>
-      </button>
-
-      {/* Content */}
-      <div className="flex-grow min-w-0">
-        <div className="flex flex-wrap items-center gap-2 mb-1">
-          <h3 className={`text-sm font-bold truncate ${task.status === 'Completed' ? 'line-through text-neutral-500' : 'text-neutral-200'}`}>
-            {task.title}
-          </h3>
-          <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-neutral-900/80 border border-neutral-800">
-            <span className={`w-1.5 h-1.5 rounded-full ${getPriorityColor(task.priority)}`} />
-            <span className="text-[9px] font-mono uppercase text-neutral-400 tracking-wider">{task.priority}</span>
-          </div>
-          {task.subject && (
-            <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-indigo-900/20 border border-indigo-500/30">
-              <span className="text-[9px] font-mono uppercase text-indigo-400 tracking-wider">{task.subject}</span>
-            </div>
-          )}
-        </div>
-        
-        {task.description && (
-          <p className="text-xs text-neutral-400/80 line-clamp-2 leading-relaxed mb-3">
-            {task.description}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono text-neutral-500 uppercase tracking-wider">
-          {task.deadline && (
-            <span className={`flex items-center gap-1 ${task.status !== 'Completed' && new Date(task.deadline) < new Date(new Date().setHours(0,0,0,0)) ? 'text-rose-500' : ''}`}>
-              <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              TGT: {new Date(task.deadline).toLocaleDateString()}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <svg className="w-3 h-3 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            UPD: {new Date(task.updatedAt || task.createdAt).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+        {/* Checkbox Toggle */}
         <button 
-          onClick={() => deleteTask(task._id)}
-          className="p-1.5 text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors cursor-pointer"
-          title="Purge Task"
+          onClick={() => updateTask(task._id, { status: isCompleted ? 'Pending' : 'Completed' })}
+          className={`mt-0.5 shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+            isCompleted 
+              ? 'bg-cyan/20 border-cyan/50 text-cyan' 
+              : 'bg-surface-inset border-border-subtle hover:border-cyan text-transparent hover:text-cyan/40'
+          }`}
+          title={isCompleted ? 'Mark Pending' : 'Mark Completed'}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
+          <Check className="w-3.5 h-3.5 stroke-[3]" />
         </button>
+
+        {/* Card Body */}
+        <div className="flex-grow min-w-0">
+          {/* Header Row: Title & Badges on Left, Right-Aligned Due Date & Priority on Right */}
+          <div className="flex items-start justify-between gap-3 mb-1.5">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <h3 className={`text-sm font-sans font-semibold truncate ${isCompleted ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
+                {task.title}
+              </h3>
+
+              {/* Subject Badge */}
+              {task.subject && (
+                <span className="px-2 py-0.5 rounded-sm font-sans text-xs bg-cyan-dim text-cyan border border-cyan/20">
+                  {task.subject}
+                </span>
+              )}
+
+              {/* AI-Generated Tag Cross-Pollination */}
+              {(task.isAiGenerated || task.source === 'ai' || task.source === 'AI') && (
+                <span className="px-2 py-0.5 rounded-sm font-sans text-xs bg-violet-dim text-violet border border-violet/30 flex items-center gap-1 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet" />
+                  AI-generated
+                </span>
+              )}
+            </div>
+
+            {/* Right-Aligned Badges: Priority + Due Date */}
+            <div className="shrink-0 flex items-center gap-2.5 text-right">
+              {renderPriorityBadge(task.priority)}
+
+              <span className={`text-xs font-mono tracking-tight flex items-center gap-1.5 ${
+                isCompleted 
+                  ? 'text-text-tertiary' 
+                  : isOverdue 
+                    ? 'text-danger font-semibold' 
+                    : 'text-text-secondary'
+              }`}>
+                <Clock className="w-3.5 h-3.5" />
+                <span>Due: {formattedDate}</span>
+              </span>
+            </div>
+          </div>
+          
+          {/* Description */}
+          {task.description && (
+            <p className="text-xs font-sans text-text-secondary line-clamp-2 leading-relaxed mb-3">
+              {task.description}
+            </p>
+          )}
+
+          {/* Footer Metadata & Actions */}
+          <div className="flex items-center justify-between text-xs font-sans text-text-tertiary pt-2 border-t border-border-subtle/50 mt-2">
+            <span>
+              Updated {new Date(task.updatedAt || task.createdAt).toLocaleDateString()}
+            </span>
+            
+            <div className="flex items-center gap-1.5">
+              {/* Start Focus Button with Target Icon */}
+              {!isCompleted && (
+                <button 
+                  onClick={() => openFocusLauncher && openFocusLauncher({
+                    subject: task.subject || '',
+                    topic: task.title || '',
+                    taskId: task._id,
+                    goal: task.description ? `Complete task: ${task.title}` : ''
+                  })}
+                  className="text-cyan hover:text-cyan-tint hover:bg-cyan-dim px-2.5 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-sans font-medium"
+                  title="Start Focus Session"
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>Start Focus</span>
+                </button>
+              )}
+
+              {/* Standard SaaS Delete Button */}
+              <button 
+                onClick={() => deleteTask(task._id)}
+                className="text-text-tertiary hover:text-danger hover:bg-danger/10 px-2 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-sans"
+                title="Delete Task"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-neutral-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 py-10 px-6 relative overflow-hidden">
-      {/* Decorative Grid */}
+    <div className="min-h-screen bg-base text-text-primary font-sans selection:bg-cyan/30 selection:text-cyan py-8 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Decorative subtle background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f29370a_1px,transparent_1px),linear-gradient(to_bottom,#1f29370a_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[500px] h-[300px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-[500px] h-[250px] bg-cyan/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="w-full max-w-7xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto relative z-10 space-y-8">
         
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-6 mb-8 gap-4">
+        {/* Page Header */}
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-5 gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="h-2 w-2 rounded-full bg-cyan shadow-[0_0_8px_#22D3EE] animate-pulse" />
-              <p className="text-[11px] uppercase tracking-[0.04em] font-mono text-cyan font-medium">MODULE // TASK_MATRIX</p>
-            </div>
-            <h1 className="text-3xl font-display font-semibold tracking-tight text-text-primary">
-              Active Directives
+            <p className="text-xs font-sans text-cyan font-medium uppercase tracking-wider mb-1">
+              Tasks
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-sans font-bold tracking-tight text-text-primary">
+              Active Tasks
             </h1>
           </div>
+
+          {/* Standard SaaS Trigger Button */}
+          <button
+            onClick={() => setShowForm(prev => !prev)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-cyan text-text-on-accent font-sans font-medium text-sm hover:brightness-110 transition-all cursor-pointer shadow-sm"
+          >
+            {showForm ? (
+              <>
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                <span>+ New Task</span>
+              </>
+            )}
+          </button>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
           
-          {/* Section A: Command Input */}
-          <div className="lg:col-span-4">
-            <div className="bg-neutral-950/80 backdrop-blur-xl border border-neutral-800 p-6 shadow-2xl shadow-cyan-950/10 sticky top-10">
-              <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400 mb-6 border-b border-neutral-800 pb-2">
-                &gt; Initialize_Task
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [TITLE]</label>
-                  <input 
-                    type="text" 
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-neutral-700"
-                    placeholder="Enter directive title"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [SUBJECT]</label>
-                  <input 
-                    type="text" 
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-neutral-700"
-                    placeholder="e.g., Computer Architecture"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">PARAMETER [DESCRIPTION]</label>
-                  <textarea 
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-neutral-700 min-h-[80px]"
-                    placeholder="Elaborate on objectives..."
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">LEVEL [PRIORITY]</label>
-                    <select 
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleChange}
-                      className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-200 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all"
-                    >
-                      <option value="Low">LOW</option>
-                      <option value="Medium">MEDIUM</option>
-                      <option value="High">HIGH</option>
-                    </select>
+          {/* Section A: Task Input Form (Collapsible) */}
+          {showForm && (
+            <div className="lg:col-span-4 transition-all">
+              <div className="bg-surface border border-border-subtle rounded-lg p-6 sticky top-20">
+                <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-cyan" />
+                    <h2 className="text-sm font-sans font-semibold text-text-primary">
+                      Create New Task
+                    </h2>
                   </div>
-
+                  <button 
+                    onClick={() => setShowForm(false)}
+                    className="text-text-tertiary hover:text-text-primary text-xs font-sans cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-mono text-neutral-500 tracking-wider">TARGET [DEADLINE]</label>
+                    <label className="text-xs font-sans font-medium text-text-secondary">
+                      Title
+                    </label>
                     <input 
-                      type="date" 
-                      name="deadline"
-                      value={formData.deadline}
+                      type="text" 
+                      name="title"
+                      value={formData.title}
                       onChange={handleChange}
-                      className="w-full bg-[#0b0d13] border border-neutral-800 text-neutral-400 px-3 py-2 font-mono text-xs focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all"
+                      required
+                      className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all placeholder:text-text-tertiary"
+                      placeholder="e.g., Computer Architecture Review"
                     />
                   </div>
-                </div>
 
-                <button 
-                  type="submit" 
-                  className="w-full bg-cyan-500/10 border border-cyan-500/50 text-cyan-400 font-mono font-bold tracking-wider text-xs py-2.5 mt-2 hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.15)] transition-all flex justify-center items-center gap-2 cursor-pointer"
-                >
-                  [EXECUTE APPEND]
-                </button>
-              </form>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-sans font-medium text-text-secondary">
+                      Subject
+                    </label>
+                    <input 
+                      type="text" 
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all placeholder:text-text-tertiary"
+                      placeholder="e.g., Computer Science"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-sans font-medium text-text-secondary">
+                      Description
+                    </label>
+                    <textarea 
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all placeholder:text-text-tertiary min-h-[80px]"
+                      placeholder="Add any notes or context..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-sans font-medium text-text-secondary">
+                        Priority
+                      </label>
+                      <select 
+                        name="priority"
+                        value={formData.priority}
+                        onChange={handleChange}
+                        className="w-full bg-surface-inset border border-border-subtle text-text-primary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all cursor-pointer"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-sans font-medium text-text-secondary">
+                        Due Date
+                      </label>
+                      <input 
+                        type="date" 
+                        name="deadline"
+                        value={formData.deadline}
+                        onChange={handleChange}
+                        className="w-full bg-surface-inset border border-border-subtle text-text-secondary rounded-md px-3 py-2 text-xs font-sans focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Primary Action Button: Standard SaaS button */}
+                  <button 
+                    type="submit" 
+                    className="w-full bg-cyan text-text-on-accent hover:brightness-110 font-sans font-medium text-sm py-2.5 rounded-md transition-all shadow-sm flex justify-center items-center gap-2 cursor-pointer mt-2"
+                  >
+                    <span>Create Task</span>
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Section B: Active Matrix */}
-          <div className="lg:col-span-8">
-            <div className="bg-neutral-900/20 border border-neutral-800/60 p-6 min-h-[500px]">
-              <div className="flex justify-between items-center mb-6 border-b border-neutral-800/40 pb-4">
-                <h2 className="text-sm font-bold tracking-wider uppercase font-mono text-neutral-400">
-                  <span className="text-cyan-500 mr-2">_</span>TASK_REGISTRY
-                </h2>
-                {isLoading && <div className="text-xs font-mono text-cyan-500 animate-pulse">SYNCING...</div>}
+          {/* Section B: Task Registry */}
+          <div className={showForm ? 'lg:col-span-8' : 'lg:col-span-12'}>
+            <div className="bg-surface border border-border-subtle rounded-lg p-6 min-h-[500px]">
+              <div className="flex justify-between items-center mb-6 border-b border-border-subtle pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-cyan" />
+                  <h2 className="text-sm font-sans font-semibold text-text-primary">
+                    All Tasks
+                  </h2>
+                </div>
+                {isLoading && <div className="text-xs font-sans text-cyan animate-pulse">Syncing tasks...</div>}
               </div>
 
               {tasks.length === 0 && !isLoading ? (
-                <div className="text-center py-20 border border-dashed border-neutral-800 bg-neutral-900/10">
-                  <p className="text-neutral-500 font-mono text-xs">NO ACTIVE DIRECTIVES IN MATRIX</p>
+                <div className="text-center py-20 border border-dashed border-border-subtle bg-surface-inset/50 rounded-lg">
+                  <p className="text-text-tertiary font-sans text-xs">No tasks yet</p>
                 </div>
               ) : (
                 <div className="space-y-8">
                   {/* OVERDUE SECTOR */}
                   {overdueTasks.length > 0 && (
                     <div className="space-y-3">
-                      <h3 className="text-[10px] font-mono text-rose-500 tracking-[0.2em] border-b border-rose-500/20 pb-2 mb-4 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                        CRITICAL // OVERDUE
+                      <h3 className="text-xs font-sans font-semibold text-danger border-b border-danger/20 pb-2 mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+                        Overdue ({overdueTasks.length})
                       </h3>
                       {overdueTasks.map(task => renderTaskCard(task))}
                     </div>
@@ -269,8 +379,9 @@ const Tasks = () => {
                   {/* UPCOMING SECTOR */}
                   {upcomingTasks.length > 0 && (
                     <div className="space-y-3">
-                      <h3 className="text-[10px] font-mono text-cyan-500 tracking-[0.2em] border-b border-cyan-500/20 pb-2 mb-4">
-                        ACTIVE // UPCOMING
+                      <h3 className="text-xs font-sans font-semibold text-cyan border-b border-cyan/20 pb-2 mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-cyan" />
+                        Upcoming ({upcomingTasks.length})
                       </h3>
                       {upcomingTasks.map(task => renderTaskCard(task))}
                     </div>
@@ -279,8 +390,9 @@ const Tasks = () => {
                   {/* COMPLETED SECTOR */}
                   {completedTasks.length > 0 && (
                     <div className="space-y-3">
-                      <h3 className="text-[10px] font-mono text-neutral-500 tracking-[0.2em] border-b border-neutral-800 pb-2 mb-4">
-                        ARCHIVE // COMPLETED
+                      <h3 className="text-xs font-sans font-semibold text-text-tertiary border-b border-border-subtle pb-2 mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-border-strong" />
+                        Completed ({completedTasks.length})
                       </h3>
                       {completedTasks.map(task => renderTaskCard(task))}
                     </div>
