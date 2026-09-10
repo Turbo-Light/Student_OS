@@ -333,7 +333,7 @@ const AIPlanner = () => {
       <div className="absolute top-0 right-1/4 w-[500px] h-[250px] bg-violet/5 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 left-10 w-[400px] h-[300px] bg-cyan/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10 space-y-8">
+      <div className="w-full max-w-7xl mx-auto relative z-10 space-y-8">
         
         {/* Page Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-5 gap-4">

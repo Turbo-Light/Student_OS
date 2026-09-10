@@ -207,7 +207,7 @@ const Tasks = () => {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f29370a_1px,transparent_1px),linear-gradient(to_bottom,#1f29370a_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
       <div className="absolute top-0 right-1/4 w-[500px] h-[250px] bg-cyan/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10 space-y-8">
+      <div className="w-full max-w-7xl mx-auto relative z-10 space-y-8">
         
         {/* Page Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border-subtle pb-5 gap-4">
@@ -233,7 +233,7 @@ const Tasks = () => {
             ) : (
               <>
                 <Plus className="w-4 h-4" />
-                <span>+ New Task</span>
+                <span>New Task</span>
               </>
             )}
           </button>

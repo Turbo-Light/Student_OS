@@ -20,7 +20,7 @@ const Navbar = () => {
 
   return (
     <header className="w-full h-16 bg-base/90 backdrop-blur-md border-b border-border-subtle sticky top-0 z-50 select-none">
-      <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+      <div className="w-full max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         
         {/* Left: Brand Identity & Navigation */}
         <div className="flex items-center gap-8 sm:gap-10">
