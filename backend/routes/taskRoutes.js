@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
 import { getTasks, createTask, updateTask, deleteTask, getTaskStats } from '../controllers/taskController.js';
 
 const router = express.Router();
@@ -19,7 +19,7 @@ router.route('/stats').get(getTaskStats);
 // @route   PUT    /api/tasks/:id  — Update a task by ID
 // @route   DELETE /api/tasks/:id  — Delete a task by ID
 router.route('/:id')
-  .put(updateTask)
-  .delete(deleteTask);
+  .put(authorizeRoles('faculty', 'admin'), updateTask)
+  .delete(authorizeRoles('faculty', 'admin'), deleteTask);
 
 export default router;

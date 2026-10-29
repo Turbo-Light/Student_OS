@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
+import speakeasy from 'speakeasy';
+import qrcode from 'qrcode';
 
 /**
  * @desc    Register a new user
@@ -63,11 +65,37 @@ const authUser = async (req, res) => {
 
     // Verify user exists and entered password matches the hashed password in the database
     if (user && (await user.matchPassword(password))) {
+      // If user has MFA enabled, verify TOTP token
+      if (user.isMfaActive) {
+        const { totpToken } = req.body;
+        if (!totpToken) {
+          return res.status(401).json({
+            message: 'MFA token required. Please provide your TOTP token.',
+            mfaRequired: true,
+          });
+        }
+
+        const verified = speakeasy.totp.verify({
+          secret: user.mfaSecret,
+          encoding: 'base32',
+          token: totpToken,
+          window: 1,
+        });
+
+        if (!verified) {
+          return res.status(401).json({
+            message: 'Invalid MFA token. Authentication failed.',
+            mfaRequired: true,
+          });
+        }
+      }
+
       res.status(200).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        isMfaActive: user.isMfaActive,
         xp: user.xp,
         level: user.level,
         streak: user.streak,
@@ -79,6 +107,79 @@ const authUser = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: error.message || 'Server error during authentication.' });
+  }
+};
+
+const loginUser = authUser;
+
+/**
+ * @desc    Generate TOTP MFA secret and QR code for authenticated user
+ * @route   POST /api/auth/mfa/generate
+ * @access  Private
+ */
+const generateMFA = async (req, res) => {
+  try {
+    const secret = speakeasy.generateSecret({ name: 'AI Student OS' });
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    user.mfaSecret = secret.base32;
+    await user.save();
+
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+
+    res.status(200).json({
+      secret: secret.base32,
+      qrCode: qrCodeUrl,
+      otpauth_url: secret.otpauth_url,
+    });
+  } catch (error) {
+    console.error('generateMFA error:', error);
+    res.status(500).json({ message: error.message || 'Failed to generate MFA secret.' });
+  }
+};
+
+/**
+ * @desc    Verify TOTP token and activate MFA for user
+ * @route   POST /api/auth/mfa/verify
+ * @access  Private
+ */
+const verifyMFA = async (req, res) => {
+  try {
+    const { totpToken } = req.body;
+
+    if (!totpToken) {
+      return res.status(400).json({ message: 'totpToken is required.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user || !user.mfaSecret) {
+      return res.status(400).json({ message: 'MFA setup has not been initiated for this user.' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.mfaSecret,
+      encoding: 'base32',
+      token: totpToken,
+      window: 1,
+    });
+
+    if (verified) {
+      user.isMfaActive = true;
+      await user.save();
+      return res.status(200).json({
+        message: 'MFA successfully verified and activated.',
+        isMfaActive: true,
+      });
+    } else {
+      return res.status(400).json({ message: 'Invalid TOTP token.' });
+    }
+  } catch (error) {
+    console.error('verifyMFA error:', error);
+    res.status(500).json({ message: error.message || 'Failed to verify MFA token.' });
   }
 };
 
@@ -110,4 +211,4 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-export { registerUser, authUser, getUserProfile };
+export { registerUser, authUser, loginUser, getUserProfile, generateMFA, verifyMFA };

@@ -37,4 +37,17 @@ const protect = async (req, res, next) => {
   }
 };
 
-export { protect };
+/**
+ * @desc    Middleware to restrict access to specific roles.
+ *          Checks if req.user.role is included in the authorized roles.
+ */
+const authorizeRoles = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Role not authorized' });
+    }
+    next();
+  };
+};
+
+export { protect, authorizeRoles };

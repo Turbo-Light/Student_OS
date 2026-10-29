@@ -27,10 +27,17 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['student', 'admin'],
+        values: ['student', 'faculty', 'admin'],
         message: '{VALUE} is not a valid role',
       },
       default: 'student',
+    },
+    mfaSecret: {
+      type: String,
+    },
+    isMfaActive: {
+      type: Boolean,
+      default: false,
     },
     xp: {
       type: Number,
